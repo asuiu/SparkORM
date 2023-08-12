@@ -1,0 +1,65 @@
+[tool.poetry]
+name = "sparkorm"
+version = "1.0.0"  # do not edit manually. kept in sync with `tool.commitizen` config via automation
+description = "SparkORM: Python Spark SQL & DataFrame schema management and basic Object Relational Mapping."
+authors = ["Andrei Suiu <andrei.suiu@gmail.com>"]
+repository = "https://github.com/asuiu/sparkorm"
+readme = "README.md"
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = ">=3.7.2,<4.0.0"
+pyspark = "^3.0 || ^3.1 || ^3.2 || ^3.3"
+streamerate = "^1.0.1"
+
+
+[tool.poetry.dev-dependencies]
+pytest = "~7.2"
+invoke = "~2.0"
+black = "~23.1"
+pycodestyle = "~2.10"
+pydocstyle = "~6.3"
+mypy = "~1.4.1"
+pylint = "~2.16"
+pytest-spark = "~0.6"
+termcolor = "~2.2.0"
+commitizen = "~2.42.1"
+tomlkit = "~0.11.6"
+pytest-only = "~=2.0.0"
+coverage = {extras = ["toml"], version = "~7.2.1"}
+pytest-cov = "~4.0.0"
+scikit-build = "~0.16.7"
+tsx = "^0.1.4"
+
+[tool.poetry.scripts]
+test = "tasks:test"
+reformat = "tasks:reformat"
+lint = "tasks:lint"
+typecheck = "tasks:typecheck"
+verify-all = "tasks:verify_all"
+find-releasable-changes = "tasks:find_releasable_changes"
+prepare-release = "tasks:prepare_release"
+debug-auto-git-tag = "tasks:debug_auto_git_tag"
+
+[tool.poetry.group.dev.dependencies]
+# ?
+
+[tool.black]
+line-length = 120
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "1.0.0"  # do not edit manually. kept in sync with `tool.poetry` config via automation
+tag_format = "v$version"
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:"
+]
+
+[build-system]
+requires = ["poetry>=1.3"]
+build-backend = "poetry.masonry.api"

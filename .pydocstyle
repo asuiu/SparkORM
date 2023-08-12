@@ -1,0 +1,4 @@
+[pydocstyle]
+convention = pep257
+add-ignore = D401,D413,D107,D204,D105
+match = ^.*\.py$

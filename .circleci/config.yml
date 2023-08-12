@@ -1,0 +1,167 @@
+version: "2.1"
+
+
+orbs:
+  codecov: codecov/codecov@1.0.5  # https://codecov.io/gh/asuiu/sparkorm
+
+
+workflows:
+  version: "2.1"
+
+  build_and_test_workflow:
+    description: |
+      Build and test on any non-master branch.
+    jobs:
+      - build_verify:
+          filters:
+            branches:
+              ignore: master
+
+  release_workflow:
+    description: |
+      Release all releasable changes, if any, on manual approval. Bump version and publish a release.
+    jobs:
+      - build_verify:
+          filters:
+            branches:
+              only: master
+      - request_release:
+          type: approval
+          requires:
+            - build_verify
+          filters:
+            branches:
+              only: master
+      - release:
+          requires:
+            - build_verify
+            - request_release
+          filters:
+            branches:
+              only: master
+
+  debug_github_access_workflow:
+    description: |
+      Workflow to test and debug if CircleCI can correctly access, and write to, the Github-hosted
+      repository.
+    jobs:
+      - debug_auto_git_tag:
+          filters:
+            branches:
+              only: debug-github-tag-push
+
+
+jobs:
+
+  build_verify:
+    description: "Build the project and run all tests and checks."
+
+    docker:
+      - image: mattjwnet/circleci-python-java11:py3.10.1
+          # https://hub.docker.com/r/mattjwnet/circleci-python-java11
+
+    working_directory: ~/repo
+
+    steps:
+      - checkout
+
+      # Download and cache deps
+      - restore_cache:
+          keys:
+            - dependencies-{{ .Branch }}-{{ checksum "poetry.lock" }}
+
+      # Install deps
+      - run:
+          name: Install dependencies
+          command: |
+            poetry --version
+            poetry install --no-root
+
+      # Save deps
+      - save_cache:
+          key: dependencies-{{ .Branch }}-{{ checksum "poetry.lock" }}
+          paths:
+            - /home/circleci/project/.poetry/virtualenvs
+
+      # Run all checks
+      - run:
+          name: Run checks and tests
+          command: |
+            poetry run verify-all
+
+      # Store/upload code coverage artifacts
+      - store_artifacts:
+          path: reports/htmlcov
+
+      - store_artifacts:
+          path: reports/coverage.xml
+
+      - codecov/upload:
+          # see https://codecov.io/gh/asuiu/sparkorm
+          file: reports/coverage.xml
+
+      # Check for releasable changes (if any) (for convenience)
+      - run:
+          name: Check for releasable changes (if any)
+          command: |
+            poetry run find-releasable-changes
+
+
+  release:
+    description: "Bump and release package to PyPI"
+    docker:
+      - image: mattjwnet/circleci-python-java11:py3.10.1
+          # https://hub.docker.com/r/mattjwnet/circleci-python-java11
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+            - "97:6d:ea:10:69:6d:d1:1c:b2:92:a5:a6:44:7f:cf:dd"
+            # Use read-write deploy key here. So that CircleCI can write to the Github repo
+            # CircleCI deploy keys: https://app.circleci.com/settings/project/github/asuiu/sparkorm/ssh
+            # Github counterpart keys: https://github.com/asuiu/sparkorm/settings/keys
+      - run:
+          name: Install dependencies
+          command: |
+            poetry --version
+            poetry install --no-root
+      - run:
+          name: Ensure there are releasable changes
+          command: |
+            result=$(poetry run find-releasable-changes)
+            echo "${result}"
+            if [[ ${result} == *"No changes to release"* ]]; then
+              echo "Ending CircleCI job here"
+              circleci-agent step halt
+            fi
+      - run:
+          name: Push to PyPI
+          command: |
+            poetry run prepare-release
+            poetry publish --build --username "${PYPI_USERNAME}" --password "${PYPI_TOKEN}" --no-interaction
+
+
+  debug_auto_git_tag:
+    description: |
+      Create an arbitrary git release on each commit. Attempts to match the "release" job.
+      Used for debug purposes
+    docker:
+      - image: mattjwnet/circleci-python-java11:py3.10.1
+          # https://hub.docker.com/r/mattjwnet/circleci-python-java11
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+            - "97:6d:ea:10:69:6d:d1:1c:b2:92:a5:a6:44:7f:cf:dd"
+            # Use read-write deploy key here. So that CircleCI can write to the Github repo
+            # CircleCI deploy keys: https://app.circleci.com/settings/project/github/asuiu/sparkorm/ssh
+            # Github counterpart keys: https://github.com/asuiu/sparkorm/settings/keys
+      - run:
+          name: Install dependencies
+          command: |
+            poetry --version
+            poetry install --no-root
+      - run:
+          name: Perform auto arbitrary git tag
+          command: |
+            poetry run debug-auto-git-tag

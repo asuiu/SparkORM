@@ -1,0 +1,6 @@
+# Low level configuration for how the `poetry` tool should work for this project.
+# You should rarely need to change this. See `pyproject.toml` for the primary project configuration.
+
+[virtualenvs]
+in-project = true
+virtualenvs.path = "./.venv"
