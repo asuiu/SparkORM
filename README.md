@@ -529,4 +529,4 @@ Contributions are very welcome. Developers who'd like to contribute to
 this project should refer to [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## References:
-Note: this library is a Fork from https://github.com/asuiu/sparkorm
+Note: this library is a Fork from https://github.com/mattjw/sparkql
