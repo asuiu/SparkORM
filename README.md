@@ -37,17 +37,34 @@ dframe.withColumn("city_name", df[CONF_CITY_FIELD][CITY_NAME_FIELD])
 ```
 
 Instead, with `SparkORM`, schemas become a lot
-[more literate](https://github.com/asuiu/SparkORM/tree/master/examples/conferences_comparison/SparkORM_schema.py):
+[more literate](https://github.com/asuiu/SparkORM/tree/master/examples/conferences_comparison/sparkorm_schema.py):
 
 ```python
 class City(Struct):
     name = String(nullable=False)
     latitude = Float()
     longitude = Float()
+    date_created = Date(nullable=False, partitioned_by=True)
 
-class Conference(Struct):
+class Conference(TableModel):
+    class Meta:        
+        name = "conference_table"
     name = String(nullable=False)
     city = City()
+
+class LocalConferenceView(ViewModel):
+    class Meta:        
+        name = "city_table"
+
+Conference(spark).create()
+
+Conference(spark).ensure_exists()  # Creates the table, and if it already exists - validates the scheme and throws an exception if it doesn't match
+
+LocalConferenceView(spark).create_or_replace(select_statement=f"SELECT * FROM {Conference.get_name()}")
+
+Conference(spark).insert([("Bucharest", 44.4268, 26.1025, date(2020, 1, 1))])
+
+Conference(spark).drop()
 ```
 
 As does dealing with nested fields:
@@ -102,9 +119,9 @@ For
 given the `SparkORM` schema definition:
 
 ```python
-from SparkORM import Struct, String, Array
+from SparkORM import TableModel, String, Array
 
-class Article(Struct):
+class Article(TableModel):
     title = String(nullable=False)
     tags = Array(String(), nullable=False)
     comments = Array(String(nullable=False))
@@ -114,9 +131,8 @@ Then we can build the equivalent PySpark schema (a `StructType`)
 with:
 
 ```python
-from SparkORM import schema
 
-pyspark_struct = schema(Article)
+pyspark_struct = Article.get_schema()
 ```
 
 Pretty printing the schema with the expression
@@ -146,7 +162,7 @@ struct they are declared.
 For example, given the struct
 
 ```python
-class Geolocation(Struct):
+class Geolocation(TableModel):
     latitude = Float()
     longitude = Float()
 ```
@@ -157,7 +173,7 @@ Names also be overridden by explicitly specifying the field name as an
 argument to the field
 
 ```python
-class Geolocation(Struct):
+class Geolocation(TableModel):
     latitude = Float(name="lat")
     longitude = Float(name="lon")
 ```
@@ -189,7 +205,7 @@ class Comment(Struct):
     author = User(nullable=False)
 
 
-class Article(Struct):
+class Article(TableModel):
     title = String(nullable=False)
     author = User(nullable=False)
     comments = Array(Comment())
@@ -240,7 +256,7 @@ Field [metadata](https://spark.apache.org/docs/latest/api/python/reference/pyspa
 of key-value pairs.
 
 ```python
-class Article(Struct):
+class Article(TableModel):
     title = String(nullable=False,
                    metadata={"description": "The title of the article", "max_length": 100})
 ```
@@ -264,7 +280,7 @@ schema:
 ```python
 dframe = spark_session.createDataFrame([{"title": "abc"}])
 
-class Article(Struct):
+class Article(TableModel):
     title = String()
     body = String()
 ```
@@ -324,11 +340,11 @@ For
 given some simple Structs:
 
 ```python
-class User(Struct):
+class User(TableModel):
     id = Integer(name="user_id", nullable=False)
     username = String()
 
-class Article(Struct):
+class Article(TableModel):
     id = Integer(name="article_id", nullable=False)
     title = String()
     author = User()
@@ -394,7 +410,7 @@ See the following examples for a better explanation.
 For [example](https://github.com/asuiu/SparkORM/tree/master/examples/composite_schemas/inheritance.py), the following:
 
 ```python
-class BaseEvent(Struct):
+class BaseEvent(TableModel):
     correlation_id = String(nullable=False)
     event_time = Timestamp(nullable=False)
 
@@ -420,7 +436,7 @@ class EventMetadata(Struct):
     correlation_id = String(nullable=False)
     event_time = Timestamp(nullable=False)
 
-class RegistrationEvent(Struct):
+class RegistrationEvent(TableModel):
     class Meta:
         includes = [EventMetadata]
     user_id = String(nullable=False)
@@ -448,10 +464,10 @@ a `StructImplementationError` error.
 [For example](https://github.com/asuiu/SparkORM/tree/master/examples/composite_schemas/implements.py):
 
 ```
-class LogEntryMetadata(Struct):
+class LogEntryMetadata(TableModel):
     logged_at = Timestamp(nullable=False)
 
-class PageViewLogEntry(Struct):
+class PageViewLogEntry(TableModel):
     class Meta:
         implements = [LogEntryMetadata]
     page_id = String(nullable=False)

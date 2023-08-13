@@ -1,4 +1,5 @@
 """Tasks utils."""
+import platform
 from pathlib import Path
 
 from invoke import run as invoke_run
@@ -20,7 +21,11 @@ def run(cmd, pty=None, env=None, *args, **kwargs):
     - Do not use UnexpectedExit's default message format. stderr & stdout will be output and then the task will exit
     """
     if pty is None:
-        pty = True
+        # if we're under Windows, set pty to False as it's not supported
+        if platform.system() == "Windows":
+            pty = False
+        else:
+            pty = True
     if env is None:
         env = {"PYTHONPATH": "./"}
 

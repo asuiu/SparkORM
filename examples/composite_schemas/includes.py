@@ -1,4 +1,5 @@
 from sparkorm import Struct, Timestamp, String
+from sparkorm.models import TableModel
 
 
 #
@@ -9,7 +10,7 @@ class EventMetadata(Struct):
     event_time = Timestamp(nullable=False)
 
 
-class RegistrationEvent(Struct):
+class RegistrationEvent(TableModel):
     class Meta:
         includes = [EventMetadata]
     user_id = String(nullable=False)

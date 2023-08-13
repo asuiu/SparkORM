@@ -1,10 +1,11 @@
-from sparkorm import Struct, Array, String
+from sparkorm import Array, String
+from sparkorm.models import TableModel
 
 
 #
 # Example of attaching metadata to a field
 
-class Article(Struct):
+class Article(TableModel):
     title = String(nullable=False, metadata={'description': 'Title of the article'})
     tags = Array(String(), nullable=False, metadata={'enum': ['spark', 'sparkorm']})
     comments = Array(String(nullable=False), metadata={'max_length': 100})

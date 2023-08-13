@@ -1,4 +1,5 @@
-from sparkorm import Struct, String, Array
+from sparkorm import String, Array, Struct
+from sparkorm.models import TableModel
 
 
 class Address(Struct):
@@ -16,7 +17,7 @@ class Comment(Struct):
     author = User(nullable=False)
 
 
-class Article(Struct):
+class Article(TableModel):
     title = String(nullable=False)
     author = User(nullable=False)
     comments = Array(Comment())

@@ -1,6 +1,7 @@
 from pyspark.sql import SparkSession
 
 from sparkorm import Struct, String, Float, schema, path_col
+from sparkorm.models import TableModel
 
 
 #
@@ -12,7 +13,7 @@ class City(Struct):
     longitude = Float()
 
 
-class Conference(Struct):
+class Conference(TableModel):
     name = String(nullable=False)
     city = City()
 

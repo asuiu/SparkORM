@@ -1,6 +1,7 @@
 from datetime import datetime
 
-from sparkorm import Struct, Float, String, Timestamp, Array
+from sparkorm import Float, String, Timestamp, Array, Struct
+from sparkorm.models import TableModel
 
 
 class Location(Struct):
@@ -8,7 +9,7 @@ class Location(Struct):
     lon = Float(False, name="longitude")
 
 
-class Conference(Struct):
+class Conference(TableModel):
     name = String(False)
     city = String(False)
     city_location = Location(False)
