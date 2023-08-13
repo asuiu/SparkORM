@@ -29,7 +29,7 @@ class BaseModel(Struct):
     def __init_subclass__(cls, /, **kwargs):
         if hasattr(cls, "Meta"):
             attributes = {k: v for k, v in vars(cls.Meta).items() if not callable(v) and not k.startswith("__")}
-            valid_attrs = {"name", "db_config"}
+            valid_attrs = {"name", "db_config", "includes"}
             assert set(attributes.keys()).issubset(valid_attrs), f"Invalid attributes: {attributes.keys()}"
         super().__init_subclass__(**kwargs)
 
