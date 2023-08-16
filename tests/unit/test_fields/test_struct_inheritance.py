@@ -7,9 +7,11 @@ Partner to `test_struct.py`.
 from pyspark.sql.types import StructType, StructField, StringType, FloatType, IntegerType
 
 from sparkorm.exceptions import InvalidStructError
-from sparkorm import Struct, String, schema, Integer, Float
+from sparkorm import String, schema, Integer, Float
 
 import pytest
+
+from sparkorm.struct import Struct
 
 
 class TestStructInheritancePathStr:

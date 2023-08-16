@@ -5,7 +5,7 @@ from typing import Sequence, Dict, Any
 from pyspark.sql import Column
 from pyspark.sql.types import StructField
 
-from sparkorm.fields.base import BaseField
+from sparkorm.base_field import BaseField
 
 
 def path_seq(field: BaseField) -> Sequence[str]:

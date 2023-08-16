@@ -4,12 +4,12 @@ Suite of tests for the `Struct.Meta.includes` feature.
 Partner to `test_struct.py`.
 """
 
+import pytest
 from pyspark.sql.types import StructType, StructField, StringType
 
+from sparkorm import String, schema, Integer, Float
 from sparkorm.exceptions import InvalidStructError
-from sparkorm import Struct, String, schema, Integer, Float
-
-import pytest
+from sparkorm.struct import Struct
 
 
 #
@@ -112,9 +112,8 @@ class TestStructIncludesSchemaBuilding:
 
         # when, expect
         with pytest.raises(
-            InvalidStructError, match="Attempting to replace a field with an 'includes' field of different type"
+                InvalidStructError, match="Attempting to replace a field with an 'includes' field of different type"
         ):
-
             class CompositeObject(Struct):
                 class Meta:
                     includes = [AnObject, AnotherObject]
@@ -123,9 +122,8 @@ class TestStructIncludesSchemaBuilding:
     def test_should_reject_non_class_in_includes():
         # given, when, expect
         with pytest.raises(
-            InvalidStructError, match="Encountered non-class item in 'includes' list of 'Meta' inner class"
+                InvalidStructError, match="Encountered non-class item in 'includes' list of 'Meta' inner class"
         ):
-
             class CompositeObject(Struct):
                 class Meta:
                     includes = [""]
@@ -134,10 +132,9 @@ class TestStructIncludesSchemaBuilding:
     def test_class_must_be_struct_or_struct_subclass():
         # given, when, expect
         with pytest.raises(
-            InvalidStructError,
-            match="Encountered item in 'includes' list of 'Meta' inner class that is not a Struct or Struct subclass",
+                InvalidStructError,
+                match="Encountered item in 'includes' list of 'Meta' inner class that is not a Struct or Struct subclass",
         ):
-
             class CompositeObject(Struct):
                 class Meta:
                     includes = [str]

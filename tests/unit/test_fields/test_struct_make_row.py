@@ -4,14 +4,12 @@ Suite of tests for Struct make_dict.
 Partner to `test_struct.py`.
 """
 
-import re
 from collections import OrderedDict
 from typing import Mapping, Any
 
 import pytest
 
-from sparkorm.exceptions import StructInstantiationArgumentsError
-from sparkorm import Struct, String, Float
+from sparkorm.struct import Struct
 
 
 def assert_ordered_dicts_equal(dict_a: Mapping[Any, Any], dict_b: Mapping[Any, Any]):

@@ -1,8 +1,12 @@
-import pytest
+from typing import Type, Any
 
-from sparkorm.fields.base import _pretty_path
+import pytest
+from pyspark.sql.types import StructField, DataType
+
+from sparkorm import Float, String
+from sparkorm.struct import Struct
 from sparkorm.exceptions import FieldParentError, FieldNameError
-from sparkorm import Float, Struct, String
+from sparkorm.base_field import _pretty_path, BaseField
 
 
 @pytest.fixture()
@@ -14,13 +18,13 @@ class TestBaseField:
     @staticmethod
     def should_give_correct_info_string(float_field: Float):
         assert (
-            float_field._info() == "<Float\n"
-            "  spark type = FloatType\n"
-            "  nullable = True\n"
-            "  name = None <- [None, None]\n"
-            "  parent = None\n"
-            "  metadata = {}\n"
-            ">"
+                float_field._info() == "<Float\n"
+                                       "  spark type = FloatType\n"
+                                       "  nullable = True\n"
+                                       "  name = None <- [None, None]\n"
+                                       "  parent = None\n"
+                                       "  metadata = {}\n"
+                                       ">"
         )
 
     @staticmethod
@@ -51,23 +55,23 @@ class TestBaseField:
     @pytest.mark.parametrize(
         "instance,expected_repr",
         [
-            pytest.param(Float(True, "name"), "<Nullable Float: name>", id="nullable instance"),
-            pytest.param(Float(False, "name"), "<Float: name>", id="non-nullable instance"),
-            pytest.param(Float(False), "<Float: None>", id="non-nullable nameless instance"),
-            pytest.param(Float(), "<Nullable Float: None>", id="instance with default constructor"),
+            pytest.param(Float(True, "name"), "Float(name='name')", id="nullable instance"),
+            pytest.param(Float(False, "name"), "Float(nullable=False, name='name')", id="non-nullable instance"),
+            pytest.param(Float(False), "Float(nullable=False)", id="non-nullable nameless instance"),
+            pytest.param(Float(), "Float()", id="instance with default constructor"),
             pytest.param(
                 Float(metadata={}),
-                "<Nullable Float: None>",
+                "Float()",
                 id="instance with empty metadata",
             ),
             pytest.param(
                 Float(metadata={"a": "b"}),
-                "<Nullable Float [with 1 metadata item]: None>",
+                "Float(metadata={'a': 'b'})",
                 id="instance with one metadata item",
             ),
             pytest.param(
                 Float(metadata={"a": "b", "x": "y"}),
-                "<Nullable Float [with 2 metadata items]: None>",
+                "Float(metadata={'a': 'b', 'x': 'y'})",
                 id="instance with two metadata items",
             ),
         ],
@@ -120,6 +124,39 @@ class TestBaseField:
         # wheb, then
         with pytest.raises(FieldNameError):
             float_field._replace_explicit_name("new_explicit_name")
+
+    @staticmethod
+    def test_repr_nominal():
+        class TestField(BaseField):
+            """ implemetation of abstract methods: __eq__, _spark_struct_field, _spark_type_class, _validate_on_value """
+
+            @property
+            def _spark_type_class(self) -> Type[DataType]:
+                raise NotImplementedError()
+
+            def _validate_on_value(self, value: Any) -> None:
+                raise NotImplementedError()
+
+            @property
+            def _spark_struct_field(self) -> StructField:
+                raise NotImplementedError()
+
+            def __eq__(self, other: Any) -> bool:
+                raise NotImplementedError()
+
+        field = TestField()
+        assert repr(field) == "TestField()"
+        field = TestField(nullable=False)
+        assert repr(field) == "TestField(nullable=False)"
+        field = TestField(name="test_name")
+        assert repr(field) == "TestField(name='test_name')"
+        field = TestField(partitioned_by=True)
+        assert repr(field) == "TestField(partitioned_by=True)"
+        field = TestField(metadata={"a": "b"})
+        assert repr(field) == "TestField(metadata={'a': 'b'})"
+
+        field = TestField(name="test_name", metadata={"a": "b"}, nullable=False, partitioned_by=True)
+        assert repr(field) == "TestField(nullable=False, name='test_name', metadata={'a': 'b'}, partitioned_by=True)"
 
 
 class TestPrettyPath:

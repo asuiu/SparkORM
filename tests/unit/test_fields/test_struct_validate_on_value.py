@@ -2,8 +2,9 @@ import re
 
 import pytest
 
+from sparkorm import String
 from sparkorm.exceptions import FieldValueValidationError
-from sparkorm import Struct, String
+from sparkorm.struct import Struct
 
 
 class TestStructValidateOnValue:
@@ -90,7 +91,7 @@ class TestStructValidateOnValue:
 
         # when, then
         with pytest.raises(
-            FieldValueValidationError,
-            match=re.escape("Non-nullable field cannot have None value (field name = 'object_field')"),
+                FieldValueValidationError,
+                match=re.escape("Non-nullable field cannot have None value (field name = 'object_field')"),
         ):
             struct._validate_on_value(value)

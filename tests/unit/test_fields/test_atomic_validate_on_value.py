@@ -21,7 +21,7 @@ from pyspark.sql.types import (
 )
 
 from sparkorm.exceptions import FieldValueValidationError
-from sparkorm.fields.base import BaseField
+from sparkorm.base_field import BaseField
 from sparkorm import Byte, Integer, Long, Short, Decimal, Double, Float, String, Binary, Boolean, Date, Timestamp
 
 

@@ -1,5 +1,4 @@
 # Author: <andrei.suiu@gmail.com>
-from abc import ABC, abstractmethod
 from typing import Sequence, Optional, Iterable
 
 from pyspark.sql import SparkSession
@@ -8,17 +7,11 @@ from pyspark.sql.types import (
 )
 from streamerate import stream
 
-from sparkorm import Struct
+from sparkorm.db_config import DBConfig
 from sparkorm.exceptions import TableUpdateError
-from sparkorm.fields.base import PARTITIONED_BY_KEY
+from sparkorm.base_field import PARTITIONED_BY_KEY
+from sparkorm.struct import Struct
 from sparkorm.utils import spark_struct_to_sql_string, convert_to_struct_type
-
-
-class DBConfig(ABC):
-    @classmethod
-    @abstractmethod
-    def get_name(cls) -> str:
-        ...
 
 
 class BaseModel(Struct):

@@ -1,8 +1,10 @@
 import re
 
 import pytest
+from pyspark.sql.types import StringType, ArrayType, StructField
 
-from sparkorm import String, Array, Struct, Float
+from sparkorm import String, Array, Float
+from sparkorm.struct import Struct
 
 
 class TestArrayField:
@@ -91,3 +93,28 @@ class TestArrayField:
     )
     def should_be_hashable(instance: Array):
         _field_can_be_used_as_a_key = {instance: "value"}
+
+    @staticmethod
+    def test_repr_nominal():
+        element = String(nullable=False)
+        element_val = repr(element)
+        field = Array(element)
+        assert repr(field) == f"Array(element={element_val})"
+        field = Array(element, nullable=False)
+        assert repr(field) == f"Array(element={element_val}, nullable=False)"
+
+        field = Array(element, name="test_name")
+        expected_element_val = f"String(nullable=False, name='test_name')"
+        assert repr(field) == f"Array(element={expected_element_val}, name='test_name')"
+
+        field = Array(element, name="test_name", metadata={"a": "b"}, nullable=False)
+        assert repr(field) == f"Array(element={expected_element_val}, nullable=False, name='test_name', metadata={{'a': 'b'}})"
+
+    @staticmethod
+    def test_from_spark_struct_field_with_array_of_strings():
+        array_struct_field = StructField('array', ArrayType(ArrayType(StringType(), True), True))
+        orm_field = Array.from_spark_struct_field(array_struct_field)
+        assert isinstance(orm_field, Array)
+        assert isinstance(orm_field.e, Array)
+        assert isinstance(orm_field.e.e, String)
+

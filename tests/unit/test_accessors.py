@@ -3,7 +3,8 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as sql_funcs
 from pyspark.sql.types import StructField, StringType
 
-from sparkorm import String, Struct, Array
+from sparkorm.struct import Struct
+from sparkorm import String, Array
 from sparkorm import accessors
 
 

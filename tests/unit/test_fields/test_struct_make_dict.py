@@ -11,7 +11,8 @@ from typing import Mapping, Any
 import pytest
 
 from sparkorm.exceptions import StructInstantiationArgumentsError, StructInstantiationArgumentTypeError
-from sparkorm import Struct, String, Float, Array
+from sparkorm import String, Float, Array
+from sparkorm.struct import Struct
 from tests.utilities import does_not_raise
 
 

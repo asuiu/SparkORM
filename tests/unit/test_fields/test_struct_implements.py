@@ -4,10 +4,12 @@ Suite of tests for Struct "implements".
 Partner to `test_struct.py`.
 """
 
-from sparkorm import Struct, String
+from sparkorm import String
 from sparkorm.exceptions import StructImplementationError
 
 import pytest
+
+from sparkorm.struct import Struct
 
 
 class SimpleStruct(Struct):
@@ -29,7 +31,7 @@ class TestStructImplements:
         )
 
     @staticmethod
-    def should_reject_due_to_incorrect_field_type():
+    def test_should_reject_due_to_incorrect_field_type():
         # given, when, then
         with pytest.raises(StructImplementationError) as err_info:
 
@@ -40,8 +42,7 @@ class TestStructImplements:
                 field_a = String(nullable=False)
 
         assert str(err_info.value) == (
-            "Struct 'ExampleStruct' implements field 'field_a' (required by struct 'SimpleStruct') but "
-            "field is not compatible. Required <Nullable String: field_a> but found <String: field_a>"
+            "Struct 'ExampleStruct' implements field 'field_a' (required by struct 'SimpleStruct') but field is not compatible. Required String() but found String(nullable=False)"
         )
 
     @staticmethod

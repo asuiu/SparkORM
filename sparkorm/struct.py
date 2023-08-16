@@ -20,7 +20,7 @@ from sparkorm.exceptions import (
     StructInstantiationArgumentTypeError,
     FieldValueValidationError,
 )
-from sparkorm.fields.base import BaseField
+from sparkorm.base_field import BaseField, PARTITIONED_BY_KEY
 
 
 @dataclass(frozen=True)
@@ -260,6 +260,17 @@ class Struct(BaseField):
             and list(self._valid_struct_metadata().fields.keys()) == list(other._valid_struct_metadata().fields.keys())
         )
 
+    @classmethod
+    def from_spark_struct_field(cls, spark_struct_field: StructField, use_name: bool = False) -> "BaseField":
+        class SubClass(cls):
+            pass
+        nullable = spark_struct_field.nullable
+        metadata = spark_struct_field.metadata
+        partitioned_by = metadata.get(PARTITIONED_BY_KEY, False)
+        name = spark_struct_field.name if use_name else None
+
+        return SubClass(nullable=nullable, name=name, metadata=metadata, partitioned_by=partitioned_by)
+
 
 @dataclass(frozen=True)
 class _StructInnerMetadata:
@@ -496,8 +507,8 @@ class _Validator:
                         f"Struct '{self.struct_class.__name__}' "
                         f"implements field '{req_field_name}' "
                         f"(required by struct '{type(required_struct).__name__}') but field is not compatible. "
-                        f"Required {req_field._short_info()} "
-                        f"but found {root_struct_metadata.fields[req_field_name]._short_info()}"
+                        f"Required {req_field!r} "
+                        f"but found {root_struct_metadata.fields[req_field_name]!r}"
                     )
 
     def _yield_implements_structs(self) -> Generator[Struct, None, None]:

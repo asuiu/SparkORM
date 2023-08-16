@@ -1,10 +1,9 @@
-import re
-
 import pytest
 
-from sparkorm.fields.struct import _Validator, _FieldsExtractor
+from sparkorm.struct import _Validator, _FieldsExtractor
 from sparkorm.exceptions import InvalidStructError
-from sparkorm import Struct, String
+from sparkorm import String
+from sparkorm.struct import Struct
 
 
 class MockStruct(Struct):

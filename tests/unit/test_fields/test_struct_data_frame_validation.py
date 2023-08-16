@@ -5,8 +5,8 @@ from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, FloatType, ArrayType
 
 from sparkorm.exceptions import InvalidDataFrameError
-from sparkorm.fields.struct import ValidationResult
-from sparkorm import Struct, String, Float, Array
+from sparkorm import String, Float, Array
+from sparkorm.struct import Struct, ValidationResult
 
 
 class AnElement(Struct):

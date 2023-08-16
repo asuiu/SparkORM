@@ -1,11 +1,11 @@
 """Base field and abstract fields."""
 
+import copy
 from abc import ABC, abstractmethod
 from typing import Optional, Type, Any, Tuple, Sequence, Dict, TYPE_CHECKING, cast
-import copy
 
-from pyspark.sql import types as sql_type, Column
 from pyspark.sql import functions as sql_funcs
+from pyspark.sql import types as sql_type, Column
 from pyspark.sql.types import StructField, DataType
 from sparkorm.exceptions import FieldNameError, FieldParentError, FieldValueValidationError
 
@@ -26,6 +26,10 @@ def _validate_value_type_for_field(accepted_types: Tuple[Type[Any], ...], value:
 class BaseField(ABC):
     """Root of the field hierarchy; shadows DataType in the Spark API."""
 
+    DEFAULT_NULLABLE = True
+    DEFAULT_NAME = None
+    DEFAULT_PARTITIONED_BY = False
+
     # Name management logic:
     # - Explicit name (`__name_explicit`): Set via constructor.
     # - Contextual name (`__name_contextual`): Inferred for the field as it is used in a struct object.
@@ -43,7 +47,8 @@ class BaseField(ABC):
     # Placeholder for "protected" style variables. (Again, represented only for convenience.)
     _parent_struct: Optional["Struct"] = None
 
-    def __init__(self, nullable: bool = True, name: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None, partitioned_by: bool = False):
+    def __init__(self, nullable: bool = DEFAULT_NULLABLE, name: Optional[str] = DEFAULT_NAME, metadata: Optional[Dict[str, Any]] = None,
+                 partitioned_by: bool = DEFAULT_PARTITIONED_BY):
         """
         Constructor for a base field.
 
@@ -199,9 +204,6 @@ class BaseField(ABC):
         """The metadata for this field."""
         return self._metadata
 
-    #
-    # Spark type management
-
     @property
     @abstractmethod
     def _spark_type_class(self) -> Type[DataType]:
@@ -233,11 +235,11 @@ class BaseField(ABC):
         """True if `self` equals `other`."""
         # Subclasses should call this as part of their equality checks
         return (
-            isinstance(other, BaseField)
-            and self._is_nullable == other._is_nullable
-            and self._resolve_field_name() == other._resolve_field_name()  # may be None == None
-            and self._spark_type_class == other._spark_type_class
-            and self._metadata == other._metadata  # may be None == None
+                isinstance(other, BaseField)
+                and self._is_nullable == other._is_nullable
+                and self._resolve_field_name() == other._resolve_field_name()  # may be None == None
+                and self._spark_type_class == other._spark_type_class
+                and self._metadata == other._metadata  # may be None == None
         )
 
     def __str__(self) -> str:
@@ -258,26 +260,34 @@ class BaseField(ABC):
             ">"
         )
 
-    def _short_info(self) -> str:
-        """Short info string for use in error messages."""
-        nullable = "Nullable " if self._is_nullable else ""
-
-        # Good candidate for python pattern matching once <3.10 support no longer required
-        num_metadata_items = len(self.__metadata)
-        if num_metadata_items == 0:
-            metadata = ""
-        elif num_metadata_items == 1:
-            metadata = f" [with {num_metadata_items} metadata item]"
-        else:
-            metadata = f" [with {num_metadata_items} metadata items]"
-
-        return f"<{nullable}{self.__class__.__name__}{metadata}: {self._resolve_field_name()}>"
-
     def __hash__(self) -> int:
         return hash((self._is_nullable, self._resolve_field_name(""), self._spark_type_class))
 
     def __repr__(self) -> str:
-        return self._short_info()
+        args = self._get_args()
+        return f"{self.__class__.__name__}({', '.join(args)})"
+
+    def _get_args(self) -> Tuple[str, ...]:
+        nullable_arg = f"nullable={self._is_nullable!r}" if self._is_nullable is not self.DEFAULT_NULLABLE else None
+        name_arg = f"name={self._explicit_name!r}" if self._explicit_name is not self.DEFAULT_NAME else None
+        metadata = self._metadata.copy()
+        if PARTITIONED_BY_KEY in metadata:
+            partitioned_by_val = metadata.pop(PARTITIONED_BY_KEY)
+            partitioned_by_arg = f"partitioned_by={partitioned_by_val!r}"
+        else:
+            partitioned_by_arg = None
+        metadata_arg = f"metadata={metadata!r}" if metadata else None
+        non_default_args = tuple(arg for arg in (nullable_arg, name_arg, metadata_arg, partitioned_by_arg) if arg is not None)
+        return non_default_args
+
+    @classmethod
+    def from_spark_struct_field(cls, spark_struct_field: StructField, use_name: bool = False) -> "BaseField":
+        nullable = spark_struct_field.nullable
+        metadata = spark_struct_field.metadata
+        partitioned_by = metadata.get(PARTITIONED_BY_KEY, False)
+        name = spark_struct_field.name if use_name else None
+        return cls(nullable=nullable, name=name, metadata=metadata, partitioned_by=partitioned_by)
+
 
 
 class AtomicField(BaseField):
@@ -318,7 +328,7 @@ class AtomicField(BaseField):
     def __eq__(self, other: Any) -> bool:
         """True if `self` equals `other`."""
         return (
-            super().__eq__(other) and isinstance(other, AtomicField) and self._spark_data_type == other._spark_data_type
+                super().__eq__(other) and isinstance(other, AtomicField) and self._spark_data_type == other._spark_data_type
         )
 
     @abstractmethod

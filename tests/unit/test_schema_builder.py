@@ -1,6 +1,7 @@
 from pyspark.sql.types import StructField, StructType, StringType, FloatType, TimestampType, ArrayType
 
-from sparkorm import String, Array, Float, Struct, Timestamp, schema
+from sparkorm.struct import Struct
+from sparkorm import String, Array, Float, Timestamp, schema
 
 
 class TestSparkSchema:

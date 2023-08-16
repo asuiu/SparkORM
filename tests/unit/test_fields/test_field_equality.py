@@ -1,6 +1,7 @@
 import pytest
 
-from sparkorm import Struct, String, Array, Float
+from sparkorm.fields import Struct
+from sparkorm import String, Array, Float
 
 
 class TestEquality:

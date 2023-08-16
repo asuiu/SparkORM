@@ -4,9 +4,10 @@ import pytest
 from pyspark.sql import SparkSession
 from pyspark.sql.types import DecimalType, Row, StringType, StructField, TimestampType, DateType
 
-from sparkorm import String, Timestamp, Decimal, Date
+from sparkorm.db_config import DBConfig
 from sparkorm.exceptions import TableUpdateError
-from sparkorm.models import DBConfig, TableModel, ViewModel, BaseModel
+from sparkorm import Decimal, String, Date, Timestamp
+from sparkorm.models import TableModel, ViewModel, BaseModel
 from tests.utilities import convert_to_spark_types
 
 DEFAULT_DB_NAME = "db_test_test"
