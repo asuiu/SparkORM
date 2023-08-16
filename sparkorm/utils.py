@@ -122,7 +122,7 @@ def create_model_code(spark: SparkSession, db_name: str, table_name: str, db_con
     for field in struct_type.fields:
         orm_type = SPARK_TO_ORM_TYPE[type(field.dataType)]
         orm_field = orm_type.from_spark_struct_field(field, use_name=False)
-        field_repr = f"    {field.name} = {repr(orm_field)}"
+        field_repr = f"   {field.name} = {repr(orm_field)}"
         field_reprs.append(field_repr)
 
     db_config = db_config_map[db_name]
@@ -130,9 +130,9 @@ def create_model_code(spark: SparkSession, db_name: str, table_name: str, db_con
         db_config_val = f"db_config = {db_config.__name__}"
     else:
         db_config_val = ''
-    meta_repr = f"""   class Meta:\n        name = "{table_name}\n"""
+    meta_repr = f"""   class Meta:\n       name = "{table_name}"\n"""
     if db_config_val:
-        meta_repr += f"        {db_config_val}\n"
+        meta_repr += f"       {db_config_val}\n"
     class_fields = "\n".join(field_reprs)
     class_template = f"""
 class {class_name}(TableModel):

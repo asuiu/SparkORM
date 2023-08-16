@@ -42,12 +42,12 @@ class TestCreateModelCode:
         expected_class_repr = '''
 class TestPTable(TableModel):
    class Meta:
-        name = "test_p_table
+       name = "test_p_table"
 
-    vendor_key = String()
-    invoice_date = Timestamp()
-    amt = Decimal(precision=18, scale=3, nullable=False)
-    current_date = Date(nullable=False, partitioned_by=True)
+   vendor_key = String()
+   invoice_date = Timestamp()
+   amt = Decimal(precision=18, scale=3, nullable=False)
+   current_date = Date(nullable=False, partitioned_by=True)
 '''
         assert model_str == expected_class_repr
 
@@ -93,9 +93,9 @@ class TestPTable(TableModel):
         expected_class_repr = '''
 class TestPTable(TableModel):
    class Meta:
-        name = "test_p_table
+       name = "test_p_table"
 
-    map_field = Map(key=String(), value=Array(element=Array(element=String())))
-    dec_field = Decimal(precision=18, scale=3)
+   map_field = Map(key=String(), value=Array(element=Array(element=String())))
+   dec_field = Decimal(precision=18, scale=3)
 '''
         assert model_str == expected_class_repr
