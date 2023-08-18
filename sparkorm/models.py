@@ -1,29 +1,30 @@
 # Author: <andrei.suiu@gmail.com>
 from typing import Sequence, Optional, Iterable
 
-from pyspark.sql import SparkSession
+from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import (
     StructType,
 )
 from streamerate import stream
 
-from sparkorm.db_config import DBConfig
-from sparkorm.exceptions import TableUpdateError
 from sparkorm.base_field import PARTITIONED_BY_KEY
+from sparkorm.exceptions import TableUpdateError
+from sparkorm.metadata_types import DBConfig, NoChangeStrategy, SchemaMigrationStrategy, DropAndCreateStrategy, SchemaUpdateStatus
 from sparkorm.struct import Struct
 from sparkorm.utils import spark_struct_to_sql_string, convert_to_struct_type
 
 
 class BaseModel(Struct):
+    VALID_METADATA_ATTRS = {"name", "db_config", "migration_strategy", "includes"}
+
     def __init__(self, spark: SparkSession):
         super().__init__()
         self._spark = spark
 
     def __init_subclass__(cls, /, **kwargs):
         if hasattr(cls, "Meta"):
-            attributes = {k: v for k, v in vars(cls.Meta).items() if not callable(v) and not k.startswith("__")}
-            valid_attrs = {"name", "db_config", "includes"}
-            assert set(attributes.keys()).issubset(valid_attrs), f"Invalid attributes: {attributes.keys()}"
+            attributes = {k: v for k, v in vars(cls.Meta).items() if not callable(v) and not k.startswith("_")}
+            assert set(attributes.keys()).issubset(cls.VALID_METADATA_ATTRS), f"Invalid attributes: {attributes.keys()}"
         super().__init_subclass__(**kwargs)
 
     @classmethod
@@ -41,7 +42,7 @@ class BaseModel(Struct):
     @classmethod
     def get_db_name(cls) -> Optional[str]:
         assert hasattr(cls, "Meta"), f"Class {cls} must have Meta class"
-        if not hasattr(cls.Meta, "db_config"):
+        if not hasattr(cls.Meta, "db_config") or cls.Meta.db_config is None:
             return None
         db_config = cls.Meta.db_config
         assert issubclass(db_config, DBConfig)
@@ -52,9 +53,17 @@ class BaseModel(Struct):
         assert hasattr(cls, "Meta"), f"Class {cls} must have Meta class"
         return cls.Meta.name
 
+    @classmethod
+    def _get_migration_strategy(cls) -> SchemaMigrationStrategy:
+        """ Default migration strategy is NoChangeStrategy """
+        if not hasattr(cls.Meta, "migration_strategy"):
+            return NoChangeStrategy()
+        assert isinstance(cls.Meta.migration_strategy, SchemaMigrationStrategy)
+        return cls.Meta.migration_strategy
+
 
 class TableModel(BaseModel):
-    def ensure_exists(self) -> bool:
+    def ensure_exists(self) -> SchemaUpdateStatus:
         """
         Ensure that the table exists in the database, and validate its structure.
         If the table does not exist, it will be created, and the method will return False.
@@ -68,15 +77,20 @@ class TableModel(BaseModel):
             table_columns = self._spark.catalog.listColumns(tableName=self.get_name(), dbName=self.get_db_name())
             struct_type = convert_to_struct_type(table_columns)
             if struct_type != spark_schema:
+                migration_strategy = self._get_migration_strategy()
+                if isinstance(migration_strategy, DropAndCreateStrategy):
+                    self.drop()
+                    self.create()
+                    return SchemaUpdateStatus.DROPPED_AND_CREATED
                 raise TableUpdateError(
                     f"Table {full_name} already exists with different schema. "
                     f"Existing schema: {struct_type}, "
                     f"Expected schema: {spark_schema}"
                 )
-            return True
+            return SchemaUpdateStatus.SKIPPED
         else:
             self.create()
-            return False
+            return SchemaUpdateStatus.CREATED
 
     def create(self) -> None:
         """
@@ -120,6 +134,11 @@ class TableModel(BaseModel):
             serialized_batch = batch.map(lambda row: f'({",".join(row)})').mkString(",")
             insert_statement = f"INSERT INTO {full_name} ( {column_names} ) VALUES {serialized_batch}"
             self._spark.sql(insert_statement)
+
+    def insert_from_select(self, select_statement: str) -> DataFrame:
+        full_name = self.get_full_name()
+        insert_statement = f"INSERT INTO {full_name} {select_statement}"
+        return self._spark.sql(insert_statement)
 
 
 class ViewModel(BaseModel):

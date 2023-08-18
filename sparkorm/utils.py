@@ -24,7 +24,7 @@ from pyspark.sql.types import (
     _all_atomic_types, _parse_datatype_string,
 )
 
-from sparkorm.db_config import DBConfig
+from sparkorm.metadata_types import DBConfig
 from sparkorm.base_field import PARTITIONED_BY_KEY
 from sparkorm.fields import SPARK_TO_ORM_TYPE
 

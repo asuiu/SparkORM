@@ -1,12 +1,14 @@
 from unittest.mock import MagicMock
 
 import pytest
+from pyspark.pandas import DataFrame
 from pyspark.sql import SparkSession
+from pyspark.sql.catalog import Column
 from pyspark.sql.types import DecimalType, Row, StringType, StructField, TimestampType, DateType
 
-from sparkorm.db_config import DBConfig
-from sparkorm.exceptions import TableUpdateError
 from sparkorm import Decimal, String, Date, Timestamp
+from sparkorm.exceptions import TableUpdateError
+from sparkorm.metadata_types import DBConfig, NoChangeStrategy, DropAndCreateStrategy, MetaConfig, SchemaUpdateStatus
 from sparkorm.models import TableModel, ViewModel, BaseModel
 from tests.utilities import convert_to_spark_types
 
@@ -37,11 +39,25 @@ class LocalTable(TableModel):
 
     class Meta:
         name = "test_table"
+        migration_strategy = NoChangeStrategy()
 
     vendor_key = String()
     invoice_date = Timestamp()
     amt = Decimal(18, 3)
     current_date = Date(nullable=False)
+
+
+class DropCreateStrategyTable(TableModel):
+    """
+    This table is used to test the case when the table is in the local database
+    """
+
+    class Meta(MetaConfig):
+        name = "test_table"
+        migration_strategy = DropAndCreateStrategy()
+
+    vendor_key = String(partitioned_by=True)
+    amt = Decimal(18, 3)
 
 
 class LocalTableNoVendorKey(TableModel):
@@ -88,7 +104,6 @@ class TestTableModels:
 
     def test_raise_exception_on_invalid_meta(self):
         with pytest.raises(AssertionError):
-
             class InvalidMeta(BaseModel):
                 class Meta:
                     unknown_var = "test_table"
@@ -125,7 +140,7 @@ class TestTableModels:
         spark_mock = MagicMock(spec=SparkSession)
         spark_mock.catalog.tableExists.return_value = False
         exists = TestTable(spark_mock).ensure_exists()
-        assert exists is False
+        assert exists is SchemaUpdateStatus.CREATED
         spark_mock.sql.assert_called_once_with(
             "CREATE TABLE test_db.test_table (vendor_key STRING,invoice_date TIMESTAMP,amt DECIMAL(18,3),current_date DATE NOT NULL)"
         )
@@ -134,26 +149,26 @@ class TestTableModels:
         spark_mock = MagicMock(spec=SparkSession)
         spark_mock.catalog.tableExists.return_value = False
         exists = LocalTable(spark_mock).ensure_exists()
-        assert exists is False
+        assert exists is SchemaUpdateStatus.CREATED
         spark_mock.sql.assert_called_once_with(
             "CREATE TABLE test_table (vendor_key STRING,invoice_date TIMESTAMP,amt DECIMAL(18,3),current_date DATE NOT NULL)"
         )
 
-    def test_ensure_exists_table_with_partitions(self):
+    def test_ensure_exists_table_create_with_partitions(self):
         spark_mock = MagicMock(spec=SparkSession)
         spark_mock.catalog.tableExists.return_value = False
         exists = TestPartitionedTable(spark_mock).ensure_exists()
-        assert exists is False
+        assert exists is SchemaUpdateStatus.CREATED
         spark_mock.sql.assert_called_once_with(
             "CREATE TABLE test_p_table (vendor_key STRING,invoice_date TIMESTAMP,amt DECIMAL(18,3),current_date DATE NOT NULL)"
             " PARTITIONED BY (invoice_date,current_date)"
         )
 
-    def test_ensure_exists_partitioned_by(self):
+    def test_ensure_exists_created_with_partitioned_by(self):
         spark_mock = MagicMock(spec=SparkSession)
         spark_mock.catalog.tableExists.return_value = False
         exists = TestPartitionedTable(spark_mock).ensure_exists()
-        assert exists is False
+        assert exists is SchemaUpdateStatus.CREATED
         spark_mock.sql.assert_called_once_with(
             "CREATE TABLE test_p_table (vendor_key STRING,invoice_date TIMESTAMP,amt DECIMAL(18,3),current_date DATE NOT NULL) PARTITIONED BY (invoice_date,current_date)"
         )
@@ -168,10 +183,10 @@ class TestTableModels:
         df = spark_session.createDataFrame(rows, schema=LocalTable.get_spark_schema())
         df.createOrReplaceTempView(LocalTable.get_full_name())
         exists = LocalTable(spark_session).ensure_exists()
-        assert exists is True
+        assert exists is SchemaUpdateStatus.SKIPPED
 
     def test_ensure_exists_table_raises_on_distinct_table_exists(
-        self, setup_clean_spark_catalog, spark_session: SparkSession
+            self, setup_clean_spark_catalog, spark_session: SparkSession
     ):
         """
         We expect the create method to raise an error if the table exists with a different schema.
@@ -214,6 +229,37 @@ class TestTableModels:
         ]
 
         assert actual_insert_stms == expected_stms
+
+    def test_insert_from_select(self):
+        spark_mock = MagicMock(spec=SparkSession)
+        mock_return_df = MagicMock(spec=DataFrame)
+        spark_mock.sql.return_value = mock_return_df
+        select_statement = "SELECT * FROM test_db2.test_table2"
+        expected_df = TestTable(spark_mock).insert_from_select(select_statement)
+        spark_mock.sql.assert_called_once_with(f"INSERT INTO test_db.test_table {select_statement}")
+        assert expected_df is mock_return_df
+
+    def test_drop_create_strategy(self):
+        """
+        We expect the create method to raise an error if the table exists with a different schema.
+        In our case we'll pass the same schema, but because we can't create real tables in the test environment, there will be view, which is not partitioned,
+            and the lack of partitioned fields will cause the error.
+        """
+        spark_mock = MagicMock(spec=SparkSession)
+        spark_mock.catalog.tableExists.return_value = True
+        spark_mock.catalog.listColumns.return_value = [
+            Column(name='vendor_key', description=None, dataType='string', nullable=True, isPartition=False, isBucket=False),
+            Column(name='amt', description=None, dataType='decimal(18,3)', nullable=True, isPartition=False, isBucket=False)]
+
+        table_model_in_test = DropCreateStrategyTable(spark_mock)
+        table_model_in_test.create = MagicMock()
+        table_model_in_test.drop = MagicMock()
+
+        result = table_model_in_test.ensure_exists()
+        table_model_in_test.drop.assert_called_once()
+        table_model_in_test.create.assert_called_once()
+        assert result is SchemaUpdateStatus.DROPPED_AND_CREATED
+
 
 
 class TestViewModels:

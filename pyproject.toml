@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sparkorm"
-version = "1.1.1"  # do not edit manually. kept in sync with `tool.commitizen` config via automation
+version = "1.2.0"  # do not edit manually. kept in sync with `tool.commitizen` config via automation
 description = "SparkORM: Python Spark SQL & DataFrame schema management and basic Object Relational Mapping."
 authors = ["Andrei Suiu <andrei.suiu@gmail.com>"]
 repository = "https://github.com/asuiu/sparkorm"
@@ -16,7 +16,7 @@ streamerate = "^1.0.1"
 [tool.poetry.dev-dependencies]
 pytest = "~7.2"
 invoke = "~2.0"
-black = "~23.1"
+black = ">=23.1"
 pycodestyle = "~2.10"
 pydocstyle = "~6.3"
 mypy = "~1.4.1"
@@ -30,6 +30,8 @@ coverage = {extras = ["toml"], version = "~7.2.1"}
 pytest-cov = "~4.0.0"
 scikit-build = "~0.16.7"
 tsx = "^0.1.4"
+pandas = ">=1.0.5" # required by pyspark to run tests
+PyArrow = ">=1.0.0" # required by pyspark to run tests
 
 [tool.poetry.scripts]
 test = "tasks:test"
@@ -46,7 +48,7 @@ line-length = 120
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "1.1.1"  # do not edit manually. kept in sync with `tool.poetry` config via automation
+version = "1.2.0"  # do not edit manually. kept in sync with `tool.poetry` config via automation
 tag_format = "v$version"
 
 [tool.coverage.run]
