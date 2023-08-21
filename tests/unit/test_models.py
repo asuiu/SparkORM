@@ -1,5 +1,7 @@
+from io import StringIO
 from unittest.mock import MagicMock
 
+import pandas as pd
 import pytest
 from pyspark.pandas import DataFrame
 from pyspark.sql import SparkSession
@@ -227,6 +229,25 @@ class TestTableModels:
             'INSERT INTO test_db.test_table ( vendor_key,invoice_date,amt,current_date ) VALUES ("VendorA","2023-01-01 12:00:00",123.456,"2023-01-01"),("VendorB","2023-02-01 14:00:00",789.101,"2023-02-01")',
             'INSERT INTO test_db.test_table ( vendor_key,invoice_date,amt,current_date ) VALUES ("VendorC","2023-03-01 16:00:00",101.112,"2023-03-01")',
         ]
+
+        assert actual_insert_stms == expected_stms
+
+    def test_insert_from_csv(self):
+        spark_mock = MagicMock(spec=SparkSession)
+
+        # CSV will contain a distinct order vs the table schema
+        columns = ['vendor_key', 'amt', 'invoice_date', 'current_date']
+        data = ['"VendorA"', 123.456, '"2023-01-01 12:00:00"', 'DATE(2023,01,01)']
+        df = pd.DataFrame([data], columns=columns)
+
+        csv_file = StringIO()
+        df.to_csv(csv_file, index=False)
+        csv_content = csv_file.getvalue()
+        csv_file = StringIO(csv_content)
+        TestTable(spark_mock).insert_from_csv(csv_file)
+        actual_insert_stms = [call[0][0] for call in spark_mock.sql.call_args_list]
+        expected_stms = [
+            'INSERT INTO test_db.test_table ( vendor_key,invoice_date,amt,current_date ) VALUES ("VendorA","2023-01-01 12:00:00",123.456,DATE(2023,01,01))']
 
         assert actual_insert_stms == expected_stms
 

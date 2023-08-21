@@ -1,5 +1,6 @@
 # Author: <andrei.suiu@gmail.com>
-from typing import Sequence, Optional, Iterable
+import csv
+from typing import Sequence, Optional, Iterable, IO
 
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import (
@@ -134,6 +135,22 @@ class TableModel(BaseModel):
             serialized_batch = batch.map(lambda row: f'({",".join(row)})').mkString(",")
             insert_statement = f"INSERT INTO {full_name} ( {column_names} ) VALUES {serialized_batch}"
             self._spark.sql(insert_statement)
+
+    def insert_from_csv(self, f: IO, batch_size: int = 500) -> None:
+        """
+        Insert CSV data into the table.
+        :param f: File object containing the CSV data
+        :param batch_size: Number of rows to insert in a single insert statement
+        """
+        csv_reader = csv.DictReader(f)
+        # Ensure that all columns in the order list are present in the CSV file
+        columns_order = [x.name for x in self.get_spark_schema().fields]
+        for column in columns_order:
+            if column not in csv_reader.fieldnames:
+                raise ValueError(f"Column '{column}' not found in the CSV file.")
+
+        ordered_rows = stream(csv_reader).map(lambda row: [row[column] for column in columns_order])
+        self.insert(ordered_rows, batch_size)
 
     def insert_from_select(self, select_statement: str) -> DataFrame:
         full_name = self.get_full_name()
