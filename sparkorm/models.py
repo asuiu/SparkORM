@@ -1,6 +1,6 @@
 # Author: <andrei.suiu@gmail.com>
 import csv
-from typing import Sequence, Optional, Iterable, IO
+from typing import Sequence, Optional, Iterable, IO, Literal
 
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import (
@@ -156,6 +156,10 @@ class TableModel(BaseModel):
         full_name = self.get_full_name()
         insert_statement = f"INSERT INTO {full_name} {select_statement}"
         return self._spark.sql(insert_statement)
+
+    def insert_from_df(self, df: DataFrame, saveMode: Literal["append", "overwrite", "ignore", "error"] = "error") -> None:
+        full_name = self.get_full_name()
+        return df.write.mode(saveMode).insertInto(full_name)
 
 
 class ViewModel(BaseModel):

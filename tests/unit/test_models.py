@@ -8,7 +8,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.catalog import Column
 from pyspark.sql.types import DecimalType, Row, StringType, StructField, TimestampType, DateType
 
-from sparkorm import Decimal, String, Date, Timestamp
+from sparkorm import Decimal, String, Date, Timestamp, Map, Array
 from sparkorm.exceptions import TableUpdateError
 from sparkorm.metadata_types import DBConfig, NoChangeStrategy, DropAndCreateStrategy, MetaConfig, SchemaUpdateStatus
 from sparkorm.models import TableModel, ViewModel, BaseModel
@@ -260,6 +260,24 @@ class TestTableModels:
         spark_mock.sql.assert_called_once_with(f"INSERT INTO test_db.test_table {select_statement}")
         assert expected_df is mock_return_df
 
+    # ignore this test
+    @pytest.mark.skip(reason="Skip this test due to the impossibility of local Spark instance to create tables without an installed Hadoop")
+    def test_insert_from_df(self,setup_clean_spark_catalog, spark_session: SparkSession):
+        """ Tests if the insert_from_df() works properly when receiving a DataFrame with default "error" mode """
+        # DropCreateStrategyTable(spark_session).ensure_exists()
+        schema = DropCreateStrategyTable.get_spark_schema()
+        full_name = DropCreateStrategyTable.get_full_name()
+        TestTableRow = Row(*schema.names)
+        data = [
+            TestTableRow("VendorA", 123.456),
+            TestTableRow("VendorB", 789.101),
+        ]
+        rows = convert_to_spark_types(data, schema)
+        df = spark_session.createDataFrame(rows, schema=schema)
+        df.createOrReplaceTempView(full_name)  # Create a temporary view
+        DropCreateStrategyTable(spark_session).insert_from_df(df)
+        assert spark_session.catalog.listTables() == [DropCreateStrategyTable.get_full_name()]
+
     def test_drop_create_strategy(self):
         """
         We expect the create method to raise an error if the table exists with a different schema.
@@ -281,6 +299,42 @@ class TestTableModels:
         table_model_in_test.create.assert_called_once()
         assert result is SchemaUpdateStatus.DROPPED_AND_CREATED
 
+    def test_long_names(self):
+        class ScenarioFilter(TableModel):
+            class Meta:
+                name = "scenario_filter"
+                db_config = TestDB
+                migration_strategy = DropAndCreateStrategy()
+
+            scenario_no = String()
+            domain = String()
+            scenario_filter_table_name = String()
+            scenario_filter_column_name = Map(key=String(), value=String())
+            scenario_filter_value = Map(key=String(), value=Array(element=Array(element=String())))
+            filter_include_exclude_flag = String()
+            scenario_filter_active_flag = String()
+            comments = String()
+            change_begin_date = String()
+            change_end_date = String()
+            last_update_date = String()
+
+        spark_mock = MagicMock(spec=SparkSession)
+        table = ScenarioFilter(spark_mock)
+        columns_order = [x.name for x in table.get_spark_schema().fields]
+        expected_columns_order = [
+            "scenario_no",
+            "domain",
+            "scenario_filter_table_name",
+            "scenario_filter_column_name",
+            "scenario_filter_value",
+            "filter_include_exclude_flag",
+            "scenario_filter_active_flag",
+            "comments",
+            "change_begin_date",
+            "change_end_date",
+            "last_update_date",
+        ]
+        assert columns_order == expected_columns_order
 
 
 class TestViewModels:
