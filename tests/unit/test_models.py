@@ -1,5 +1,5 @@
 from io import StringIO
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import pandas as pd
 import pytest
@@ -335,6 +335,13 @@ class TestTableModels:
             "last_update_date",
         ]
         assert columns_order == expected_columns_order
+
+    def test_sql_nominal(self):
+        spark_mock = MagicMock(spec=SparkSession)
+        spark_mock.sql.return_value = "test"
+        TestTable(spark_mock).sql("SELECT * FROM {NAME}")
+        spark_mock.sql.assert_called_once_with('SELECT * FROM {NAME}', None, NAME='test_db.test_table')
+
 
 
 class TestViewModels:

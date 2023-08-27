@@ -1,6 +1,6 @@
 # Author: <andrei.suiu@gmail.com>
 import csv
-from typing import Sequence, Optional, Iterable, IO, Literal
+from typing import Sequence, Optional, Iterable, IO, Literal, Dict, Any
 
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import (
@@ -17,6 +17,7 @@ from sparkorm.utils import spark_struct_to_sql_string, convert_to_struct_type
 
 class BaseModel(Struct):
     VALID_METADATA_ATTRS = {"name", "db_config", "migration_strategy", "includes"}
+    SQL_NAME = "NAME"
 
     def __init__(self, spark: SparkSession):
         super().__init__()
@@ -61,6 +62,17 @@ class BaseModel(Struct):
             return NoChangeStrategy()
         assert isinstance(cls.Meta.migration_strategy, SchemaMigrationStrategy)
         return cls.Meta.migration_strategy
+
+    def sql(self, sqlQuery: str, args: Optional[Dict[str, Any]] = None, **kwargs: Any) -> DataFrame:
+        """
+        Execute a SQL query and return the result as a DataFrame.
+        Additionally to the standard Spark SQL parameters, this method would send the name of the table/view as a parameter named "NAME".
+        Example:
+            SELECT * FROM {NAME} -> SELECT * FROM my_db.my_table
+        """
+        if self.SQL_NAME not in kwargs:
+            kwargs[self.SQL_NAME] = self.get_full_name()
+        return self._spark.sql(sqlQuery, args, **kwargs)
 
 
 class TableModel(BaseModel):
@@ -160,6 +172,10 @@ class TableModel(BaseModel):
     def insert_from_df(self, df: DataFrame, saveMode: Literal["append", "overwrite", "ignore", "error"] = "error") -> None:
         full_name = self.get_full_name()
         return df.write.mode(saveMode).insertInto(full_name)
+
+    def as_df(self) -> DataFrame:
+        full_name = self.get_full_name()
+        return self._spark.table(full_name)
 
 
 class ViewModel(BaseModel):
