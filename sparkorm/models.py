@@ -63,6 +63,10 @@ class BaseModel(Struct):
         assert isinstance(cls.Meta.migration_strategy, SchemaMigrationStrategy)
         return cls.Meta.migration_strategy
 
+    @classmethod
+    def get_migration_strategy(cls) -> SchemaMigrationStrategy:
+        return cls._get_migration_strategy()
+
     def sql(self, sqlQuery: str, args: Optional[Dict[str, Any]] = None, **kwargs: Any) -> DataFrame:
         """
         Execute a SQL query and return the result as a DataFrame.
