@@ -1,5 +1,5 @@
 from io import StringIO
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
@@ -106,6 +106,7 @@ class TestTableModels:
 
     def test_raise_exception_on_invalid_meta(self):
         with pytest.raises(AssertionError):
+
             class InvalidMeta(BaseModel):
                 class Meta:
                     unknown_var = "test_table"
@@ -188,7 +189,7 @@ class TestTableModels:
         assert exists is SchemaUpdateStatus.SKIPPED
 
     def test_ensure_exists_table_raises_on_distinct_table_exists(
-            self, setup_clean_spark_catalog, spark_session: SparkSession
+        self, setup_clean_spark_catalog, spark_session: SparkSession
     ):
         """
         We expect the create method to raise an error if the table exists with a different schema.
@@ -236,8 +237,8 @@ class TestTableModels:
         spark_mock = MagicMock(spec=SparkSession)
 
         # CSV will contain a distinct order vs the table schema
-        columns = ['vendor_key', 'amt', 'invoice_date', 'current_date']
-        data = ['"VendorA"', 123.456, '"2023-01-01 12:00:00"', 'DATE(2023,01,01)']
+        columns = ["vendor_key", "amt", "invoice_date", "current_date"]
+        data = ['"VendorA"', 123.456, '"2023-01-01 12:00:00"', "DATE(2023,01,01)"]
         df = pd.DataFrame([data], columns=columns)
 
         csv_file = StringIO()
@@ -247,7 +248,8 @@ class TestTableModels:
         TestTable(spark_mock).insert_from_csv(csv_file)
         actual_insert_stms = [call[0][0] for call in spark_mock.sql.call_args_list]
         expected_stms = [
-            'INSERT INTO test_db.test_table ( vendor_key,invoice_date,amt,current_date ) VALUES ("VendorA","2023-01-01 12:00:00",123.456,DATE(2023,01,01))']
+            'INSERT INTO test_db.test_table ( vendor_key,invoice_date,amt,current_date ) VALUES ("VendorA","2023-01-01 12:00:00",123.456,DATE(2023,01,01))'
+        ]
 
         assert actual_insert_stms == expected_stms
 
@@ -261,9 +263,11 @@ class TestTableModels:
         assert expected_df is mock_return_df
 
     # ignore this test
-    @pytest.mark.skip(reason="Skip this test due to the impossibility of local Spark instance to create tables without an installed Hadoop")
-    def test_insert_from_df(self,setup_clean_spark_catalog, spark_session: SparkSession):
-        """ Tests if the insert_from_df() works properly when receiving a DataFrame with default "error" mode """
+    @pytest.mark.skip(
+        reason="Skip this test due to the impossibility of local Spark instance to create tables without an installed Hadoop"
+    )
+    def test_insert_from_df(self, setup_clean_spark_catalog, spark_session: SparkSession):
+        """Tests if the insert_from_df() works properly when receiving a DataFrame with default "error" mode"""
         # DropCreateStrategyTable(spark_session).ensure_exists()
         schema = DropCreateStrategyTable.get_spark_schema()
         full_name = DropCreateStrategyTable.get_full_name()
@@ -287,8 +291,13 @@ class TestTableModels:
         spark_mock = MagicMock(spec=SparkSession)
         spark_mock.catalog.tableExists.return_value = True
         spark_mock.catalog.listColumns.return_value = [
-            Column(name='vendor_key', description=None, dataType='string', nullable=True, isPartition=False, isBucket=False),
-            Column(name='amt', description=None, dataType='decimal(18,3)', nullable=True, isPartition=False, isBucket=False)]
+            Column(
+                name="vendor_key", description=None, dataType="string", nullable=True, isPartition=False, isBucket=False
+            ),
+            Column(
+                name="amt", description=None, dataType="decimal(18,3)", nullable=True, isPartition=False, isBucket=False
+            ),
+        ]
 
         table_model_in_test = DropCreateStrategyTable(spark_mock)
         table_model_in_test.create = MagicMock()
@@ -339,9 +348,8 @@ class TestTableModels:
     def test_sql_nominal(self):
         spark_mock = MagicMock(spec=SparkSession)
         spark_mock.sql.return_value = "test"
-        TestTable(spark_mock).sql("SELECT * FROM {NAME}")
-        spark_mock.sql.assert_called_once_with('SELECT * FROM {NAME}', None, NAME='test_db.test_table')
-
+        TestTable(spark_mock).sql(f"SELECT * FROM {TestTable.get_full_name()}")
+        spark_mock.sql.assert_called_once_with("SELECT * FROM test_db.test_table", None)
 
 
 class TestViewModels:

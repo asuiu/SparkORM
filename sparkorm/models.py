@@ -70,12 +70,7 @@ class BaseModel(Struct):
     def sql(self, sqlQuery: str, args: Optional[Dict[str, Any]] = None, **kwargs: Any) -> DataFrame:
         """
         Execute a SQL query and return the result as a DataFrame.
-        Additionally to the standard Spark SQL parameters, this method would send the name of the table/view as a parameter named "NAME".
-        Example:
-            SELECT * FROM {NAME} -> SELECT * FROM my_db.my_table
         """
-        if self.SQL_NAME not in kwargs:
-            kwargs[self.SQL_NAME] = self.get_full_name()
         return self._spark.sql(sqlQuery, args, **kwargs)
 
 
