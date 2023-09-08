@@ -351,6 +351,22 @@ class TestTableModels:
         TestTable(spark_mock).sql(f"SELECT * FROM {TestTable.get_full_name()}")
         spark_mock.sql.assert_called_once_with("SELECT * FROM test_db.test_table", None)
 
+    def test_sql_functional_nominal(self, spark_session: SparkSession, setup_clean_spark_catalog):
+        TestTableRow = Row(*LocalTable.get_spark_schema().names)
+        data = [
+            TestTableRow("VendorA", "2023-01-01 12:00:00", 123.456, "2023-01-01"),
+            TestTableRow("VendorB", "2023-02-01 14:00:00", 789.101, "2023-02-01"),
+        ]
+        table = LocalTable(spark_session)
+        rows = convert_to_spark_types(data, table.get_spark_schema())
+        df = spark_session.createDataFrame(rows, schema=table.get_spark_schema())
+        df.createOrReplaceTempView(table.get_full_name())
+        res_df = table.sql(f"SELECT * FROM {table.get_full_name()}")
+        pdf = res_df.toPandas()
+        assert res_df.count() == 2
+
+
+
 
 class TestViewModels:
     def test_ensure_exists_view_happy_path(self):
