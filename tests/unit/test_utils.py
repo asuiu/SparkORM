@@ -169,6 +169,7 @@ class TestPTable(TableModel):
             (42, "42"),  # Integer input
             (3.14, "3.14"),  # Float input
             ([1, 2, 3], "(1,2,3)"),  # List input
+            (range(3), "(0,1,2)"),  # Iterable input
             ([True, False], "(True,False)"),  # List of booleans
             ((), "()"),  # Empty tuple
             ([], "()"),  # Empty list

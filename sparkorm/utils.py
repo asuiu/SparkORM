@@ -1,8 +1,9 @@
 # Author: <andrei.suiu@gmail.com>
 import re
 from numbers import Number
-from typing import Sequence, Dict, Union
+from typing import Sequence, Dict, Union, Iterable
 
+from _decimal import Decimal
 from pyspark.sql import Column, SparkSession
 from pyspark.sql.types import (
     StructField,
@@ -30,8 +31,8 @@ from sparkorm.fields import SPARK_TO_ORM_TYPE
 from sparkorm.metadata_types import DBConfig
 
 DECIMAL_TYPE_RE = re.compile(r"decimal\((\d+),(\d+)\)", re.I)
-SqlPrimitive = Union[str, Number, bool]
-SqlType = Union[SqlPrimitive, Sequence[SqlPrimitive]]
+SqlPrimitive = Union[str, Number, bool, Decimal]
+SqlType = Union[SqlPrimitive, Iterable[SqlPrimitive]]
 
 
 def spark_struct_to_sql_string(spark_struct: StructField) -> str:
@@ -181,7 +182,6 @@ def as_sql_type(data_type: DataType) -> str:
     raise ValueError(f"Not suported data type: {data_type}")
 
 
-
 def as_sql_value(value: SqlType) -> str:
     if isinstance(value, str):
         return f"'{value}'"
@@ -189,6 +189,6 @@ def as_sql_value(value: SqlType) -> str:
         return 'True' if value else 'False'
     if isinstance(value, Number):
         return str(value)
-    if isinstance(value, Sequence):
+    if isinstance(value, Iterable):
         return f"({','.join(as_sql_value(v) for v in value)})"
     return str(value)
