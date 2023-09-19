@@ -349,7 +349,7 @@ class TestTableModels:
         spark_mock = MagicMock(spec=SparkSession)
         spark_mock.sql.return_value = "test"
         TestTable(spark_mock).sql(f"SELECT * FROM {TestTable.get_full_name()}")
-        spark_mock.sql.assert_called_once_with("SELECT * FROM test_db.test_table", None)
+        spark_mock.sql.assert_called_once_with("SELECT * FROM test_db.test_table")
 
     def test_sql_functional_nominal(self, spark_session: SparkSession, setup_clean_spark_catalog):
         TestTableRow = Row(*LocalTable.get_spark_schema().names)
@@ -363,7 +363,7 @@ class TestTableModels:
         df.createOrReplaceTempView(table.get_full_name())
         res_df = table.sql(f"SELECT * FROM {table.get_full_name()}")
         pdf = res_df.toPandas()
-        assert res_df.count() == 2
+        assert len(pdf.index) == 2
 
 
 

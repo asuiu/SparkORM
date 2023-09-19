@@ -1,6 +1,6 @@
 # Author: <andrei.suiu@gmail.com>
 import csv
-from typing import Sequence, Optional, Iterable, IO, Literal, Dict, Any
+from typing import Sequence, Optional, Iterable, IO, Literal, Any
 
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import (
@@ -67,11 +67,11 @@ class BaseModel(Struct):
     def get_migration_strategy(cls) -> SchemaMigrationStrategy:
         return cls._get_migration_strategy()
 
-    def sql(self, sqlQuery: str, args: Optional[Dict[str, Any]] = None, **kwargs: Any) -> DataFrame:
+    def sql(self, sqlQuery: str, *args, **kwargs: Any) -> DataFrame:
         """
         Execute a SQL query and return the result as a DataFrame.
         """
-        return self._spark.sql(sqlQuery, args, **kwargs)
+        return self._spark.sql(sqlQuery, *args, **kwargs)
 
 
 class TableModel(BaseModel):
