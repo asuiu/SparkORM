@@ -11,6 +11,7 @@ license = "MIT"
 python = ">=3.7.2,<4.0.0"
 pyspark = "^3.0 || ^3.1 || ^3.2 || ^3.3 || ^3.4"
 streamerate = "^1"
+StrEnum = ">=0.4.0"
 
 
 [tool.poetry.dev-dependencies]
@@ -44,12 +45,48 @@ prepare-release = "tasks:prepare_release"
 debug-auto-git-tag = "tasks:debug_auto_git_tag"
 
 [tool.black]
-line-length = 120
+line-length = 160
+include = '\.pyi?$'
+default_language_version = '3.8'
+
+[tool.pylint.master]
+#ignore="tests,test_integrations"
+ignore-patterns=["test_.*"]
+load-plugins=["pylint.extensions.no_self_use"]
+
+[tool.pylint.messages_control]
+max-line-length = 160
+disable = ["import-error",
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "invalid-name",
+    "no-name-in-module",
+    "missing-function-docstring",
+    "too-few-public-methods",
+    "too-many-instance-attributes",
+    "logging-fstring-interpolation"]
+output-format = "colorized"
+max-locals=25
+max-args=10
+enable="useless-suppression"
+
+[tool.ruff]
+# Enable Pyflakes `E` and `F` codes by default.
+select = ["E", "F"]
+ignore = []
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+fixable = ["A", "B", "C", "D", "E", "F"]
+unfixable = []
+
 
 [tool.commitizen]
 name = "cz_conventional_commits"
 version = "1.2.8"  # do not edit manually. kept in sync with `tool.poetry` config via automation
 tag_format = "v$version"
+
+# Same as Black.
+line-length = 160
 
 [tool.coverage.run]
 branch = true
