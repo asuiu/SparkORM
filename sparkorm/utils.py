@@ -134,7 +134,7 @@ def create_model_code(spark: SparkSession, db_name: str, table_name: str, db_con
         db_config_val = f"db_config = {db_config.__name__}"
     else:
         db_config_val = ''
-    meta_repr = f"""   class Meta:\n       name = "{table_name}"\n"""
+    meta_repr = f"""   class Meta(MetaConfig):\n       name = "{table_name}"\n"""
     if db_config_val:
         meta_repr += f"       {db_config_val}\n"
     class_fields = "\n".join(field_reprs)

@@ -78,7 +78,7 @@ class TestCreateModelCode:
         )
         expected_class_repr = """
 class TestPTable(TableModel):
-   class Meta:
+   class Meta(MetaConfig):
        name = "test_p_table"
 
    vendor_key = String()

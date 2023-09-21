@@ -10,14 +10,18 @@ from streamerate import stream
 
 from sparkorm.base_field import PARTITIONED_BY_KEY
 from sparkorm.exceptions import TableUpdateError
-from sparkorm.metadata_types import DBConfig, NoChangeStrategy, SchemaMigrationStrategy, DropAndCreateStrategy, SchemaUpdateStatus
+from sparkorm.metadata_types import DBConfig, NoChangeStrategy, SchemaMigrationStrategy, DropAndCreateStrategy, SchemaUpdateStatus, MetaConfig, LocationConfig, \
+    LocationType
 from sparkorm.struct import Struct
 from sparkorm.utils import spark_struct_to_sql_string, convert_to_struct_type
 
 
 class BaseModel(Struct):
-    VALID_METADATA_ATTRS = {"name", "db_config", "migration_strategy", "includes"}
+    VALID_METADATA_ATTRS = {"name", "db_config", "migration_strategy", "includes", "location"}
     SQL_NAME = "NAME"
+
+    class Meta(MetaConfig):
+        pass
 
     def __init__(self, spark: SparkSession):
         super().__init__()
@@ -86,13 +90,16 @@ class TableModel(BaseModel):
         spark_schema = self.get_spark_schema()
 
         if self._spark.catalog.tableExists(tableName=self.get_name(), dbName=self.get_db_name()):
+            if hasattr(self.Meta, "location") and self.Meta.location is not None:
+                self.create(or_replace=True)
+                return SchemaUpdateStatus.REPLACED
             table_columns = self._spark.catalog.listColumns(tableName=self.get_name(), dbName=self.get_db_name())
             struct_type = convert_to_struct_type(table_columns)
             if struct_type != spark_schema:
                 migration_strategy = self._get_migration_strategy()
                 if isinstance(migration_strategy, DropAndCreateStrategy):
                     self.drop()
-                    self.create()
+                    self.create(or_replace=False)
                     return SchemaUpdateStatus.DROPPED_AND_CREATED
                 raise TableUpdateError(
                     f"Table {full_name} already exists with different schema. "
@@ -104,11 +111,25 @@ class TableModel(BaseModel):
             self.create()
             return SchemaUpdateStatus.CREATED
 
-    def create(self) -> None:
+    def create(self, or_replace: bool = False) -> None:
         """
         Raises exception if the table already exists.
         """
         full_name = self.get_full_name()
+        if hasattr(self.Meta, 'location'):
+            location = self.Meta.location
+        else:
+            location = None
+        if location is not None:
+            assert isinstance(location, LocationConfig), f"Invalid location: {location}"
+            assert isinstance(location.type, LocationType), f"Invalid location type: {location.type}"
+            assert isinstance(location.location, str), f"Invalid location: {location.location}"
+            location_type = location.type
+            location_str = location.location
+            or_replace_str = " OR REPLACE" if or_replace else ""
+            create_statement = f"CREATE{or_replace_str} TABLE {full_name} USING {location_type} LOCATION '{location_str}'"
+            self._spark.sql(create_statement)
+            return
         spark_schema = self.get_spark_schema()
 
         fields = spark_schema.fields

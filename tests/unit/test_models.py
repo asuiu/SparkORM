@@ -10,7 +10,7 @@ from pyspark.sql.types import DecimalType, Row, StringType, StructField, Timesta
 
 from sparkorm import Decimal, String, Date, Timestamp, Map, Array
 from sparkorm.exceptions import TableUpdateError
-from sparkorm.metadata_types import DBConfig, NoChangeStrategy, DropAndCreateStrategy, MetaConfig, SchemaUpdateStatus
+from sparkorm.metadata_types import DBConfig, NoChangeStrategy, DropAndCreateStrategy, MetaConfig, SchemaUpdateStatus, LocationConfig, LocationType
 from sparkorm.models import TableModel, ViewModel, BaseModel
 from tests.utilities import convert_to_spark_types
 
@@ -42,6 +42,23 @@ class LocalTable(TableModel):
     class Meta:
         name = "test_table"
         migration_strategy = NoChangeStrategy()
+
+    vendor_key = String()
+    invoice_date = Timestamp()
+    amt = Decimal(18, 3)
+    current_date = Date(nullable=False)
+
+
+class TableFromLocation(TableModel):
+    """
+    This table is used to test the case when the table is in the local database
+    """
+
+    class Meta(MetaConfig):
+        name = "test_table"
+        db_config = TestDB
+        migration_strategy = NoChangeStrategy()
+        location = LocationConfig(LocationType.DELTA, "abfss://user@domain.com/path1/path2")
 
     vendor_key = String()
     invoice_date = Timestamp()
@@ -113,9 +130,7 @@ class TestTableModels:
 
     def test_partitioned_by_properly_set(self):
         schema = TestPartitionedTable.get_spark_schema()
-        partitioned_by_fields = [
-            field.name for field in schema.fields if field.metadata.get("partitioned_by", False) is True
-        ]
+        partitioned_by_fields = [field.name for field in schema.fields if field.metadata.get("partitioned_by", False) is True]
         assert partitioned_by_fields == ["invoice_date", "current_date"]
 
     def test_get_spark_schema_nominal(self):
@@ -157,6 +172,20 @@ class TestTableModels:
             "CREATE TABLE test_table (vendor_key STRING,invoice_date TIMESTAMP,amt DECIMAL(18,3),current_date DATE NOT NULL)"
         )
 
+    def test_ensure_exists_using_location_first_time(self):
+        spark_mock = MagicMock(spec=SparkSession)
+        spark_mock.catalog.tableExists.return_value = False
+        exists = TableFromLocation(spark_mock).ensure_exists()
+        assert exists is SchemaUpdateStatus.CREATED
+        spark_mock.sql.assert_called_once_with("CREATE TABLE test_db.test_table USING DELTA LOCATION 'abfss://user@domain.com/path1/path2'")
+
+    def test_ensure_exists_using_location_creates_with_replace_if_table_exists(self):
+        spark_mock = MagicMock(spec=SparkSession)
+        spark_mock.catalog.tableExists.return_value = True
+        exists = TableFromLocation(spark_mock).ensure_exists()
+        assert exists is SchemaUpdateStatus.REPLACED
+        spark_mock.sql.assert_called_once_with("CREATE OR REPLACE TABLE test_db.test_table USING DELTA LOCATION 'abfss://user@domain.com/path1/path2'")
+
     def test_ensure_exists_table_create_with_partitions(self):
         spark_mock = MagicMock(spec=SparkSession)
         spark_mock.catalog.tableExists.return_value = False
@@ -188,9 +217,7 @@ class TestTableModels:
         exists = LocalTable(spark_session).ensure_exists()
         assert exists is SchemaUpdateStatus.SKIPPED
 
-    def test_ensure_exists_table_raises_on_distinct_table_exists(
-        self, setup_clean_spark_catalog, spark_session: SparkSession
-    ):
+    def test_ensure_exists_table_raises_on_distinct_table_exists(self, setup_clean_spark_catalog, spark_session: SparkSession):
         """
         We expect the create method to raise an error if the table exists with a different schema.
         In our case we'll pass the same schema, but because we can't create real tables in the test environment, there will be view, which is not partitioned,
@@ -263,9 +290,7 @@ class TestTableModels:
         assert expected_df is mock_return_df
 
     # ignore this test
-    @pytest.mark.skip(
-        reason="Skip this test due to the impossibility of local Spark instance to create tables without an installed Hadoop"
-    )
+    @pytest.mark.skip(reason="Skip this test due to the impossibility of local Spark instance to create tables without an installed Hadoop")
     def test_insert_from_df(self, setup_clean_spark_catalog, spark_session: SparkSession):
         """Tests if the insert_from_df() works properly when receiving a DataFrame with default "error" mode"""
         # DropCreateStrategyTable(spark_session).ensure_exists()
@@ -291,12 +316,8 @@ class TestTableModels:
         spark_mock = MagicMock(spec=SparkSession)
         spark_mock.catalog.tableExists.return_value = True
         spark_mock.catalog.listColumns.return_value = [
-            Column(
-                name="vendor_key", description=None, dataType="string", nullable=True, isPartition=False, isBucket=False
-            ),
-            Column(
-                name="amt", description=None, dataType="decimal(18,3)", nullable=True, isPartition=False, isBucket=False
-            ),
+            Column(name="vendor_key", description=None, dataType="string", nullable=True, isPartition=False, isBucket=False),
+            Column(name="amt", description=None, dataType="decimal(18,3)", nullable=True, isPartition=False, isBucket=False),
         ]
 
         table_model_in_test = DropCreateStrategyTable(spark_mock)
@@ -364,8 +385,6 @@ class TestTableModels:
         res_df = table.sql(f"SELECT * FROM {table.get_full_name()}")
         pdf = res_df.toPandas()
         assert len(pdf.index) == 2
-
-
 
 
 class TestViewModels:

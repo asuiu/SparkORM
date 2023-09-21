@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from enum import auto, Enum
-from typing import Optional, Type, Union
+from typing import Optional, Type, Union, NamedTuple
+
+from strenum import StrEnum
 
 
 class DBConfig(ABC):
@@ -39,12 +41,29 @@ class SchemaUpdateStatus(Enum):
     CREATED = auto()
     SKIPPED = auto()
     DROPPED_AND_CREATED = auto()
+    REPLACED = auto()
 
+class LocationType(StrEnum):
+    TEXT = auto()
+    AVRO = auto()
+    BINARYFILE = auto()
+    CSV = auto()
+    JSON = auto()
+    PARQUET = auto()
+    ORC = auto()
+    JDBC = auto()
+    DELTA = auto()
+    LIBSVM = auto()
+
+class LocationConfig(NamedTuple):
+    type: LocationType
+    location: str
 
 class MetaConfig(ABC):
     migration_strategy: SchemaMigrationStrategy = NoChangeStrategy()
     db_config: Optional[Union[Type[DBConfig], DBConfig]] = None
     name: str
+    location: Optional[LocationConfig] = None
 
     @classmethod
     def get_name(cls) -> str:
@@ -58,6 +77,10 @@ class MetaConfig(ABC):
         return None
 
     @classmethod
-    def _get_migration_strategy(cls) -> SchemaMigrationStrategy:
+    def get_migration_strategy(cls) -> SchemaMigrationStrategy:
         assert isinstance(cls.migration_strategy, SchemaMigrationStrategy)
         return cls.migration_strategy
+
+    @classmethod
+    def get_location(cls) -> Optional[LocationConfig]:
+        return cls.location
