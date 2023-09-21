@@ -19,7 +19,7 @@ repos:
       - id: requirements-txt-fixer
 
   - repo: https://github.com/psf/black
-    rev: 23.3.0 # Replace by any tag/version: https://github.com/psf/black/tags
+    rev: 23.9.1 # Replace by any tag/version: https://github.com/psf/black/tags
     hooks:
       - id: black
         language_version: python3 # Should be a command that runs python3.6+
@@ -31,7 +31,7 @@ repos:
         args: ["--profile", "black"]
 
   - repo: https://github.com/pycqa/pylint
-    rev: v3.0.0a6
+    rev: v3.0.0a7
     hooks:
       - id: pylint
 
@@ -46,7 +46,7 @@ repos:
 
   - repo: https://github.com/charliermarsh/ruff-pre-commit
     # Ruff version.
-    rev: 'v0.0.275'
+    rev: 'v0.0.290'
     hooks:
       - id: ruff
         args: [--exit-non-zero-on-fix] # don't use --fix as it corrupts the files
