@@ -5,24 +5,24 @@ import pytest
 from pyspark.sql import SparkSession
 from pyspark.sql.catalog import Column
 from pyspark.sql.types import (
-    Row,
-    StringType,
-    IntegerType,
-    LongType,
-    DoubleType,
-    DecimalType,
+    ArrayType,
     BooleanType,
     DateType,
-    TimestampType,
-    ArrayType,
+    DecimalType,
+    DoubleType,
+    IntegerType,
+    LongType,
     MapType,
-    StructType,
+    Row,
+    StringType,
     StructField,
+    StructType,
+    TimestampType,
 )
 
-from sparkorm import Decimal, String, Array, Map
+from sparkorm import Array, Decimal, Map, String
 from sparkorm.models import TableModel
-from sparkorm.utils import create_model_code, as_sql_type, as_sql_value
+from sparkorm.utils import as_sql_type, as_sql_value, create_model_code, spark_type_to_sql_type
 from tests.unit.test_models import TestPartitionedTable
 from tests.utilities import convert_to_spark_types
 
@@ -45,9 +45,7 @@ class TestCreateModelCode:
 
     def test_create_model_code_mocked(self):
         mock_columns = [
-            Column(
-                name="vendor_key", description=None, dataType="string", nullable=True, isPartition=False, isBucket=False
-            ),
+            Column(name="vendor_key", description=None, dataType="string", nullable=True, isPartition=False, isBucket=False),
             Column(
                 name="invoice_date",
                 description=None,
@@ -64,9 +62,7 @@ class TestCreateModelCode:
                 isPartition=False,
                 isBucket=False,
             ),
-            Column(
-                name="current_date", description=None, dataType="date", nullable=False, isPartition=True, isBucket=False
-            ),
+            Column(name="current_date", description=None, dataType="date", nullable=False, isPartition=True, isBucket=False),
         ]
         spark_mock = MagicMock(spec=SparkSession)
         spark_mock.catalog.listColumns.return_value = mock_columns
@@ -102,9 +98,6 @@ class TestPTable(TableModel):
             map_field = Map(String(), Array(Array(String())))
             dec_field = Decimal(18, 3)
 
-        # spark_schema = schema(TestTableWithMap)
-        # MockStructRow = Row("string_field", "float_field")
-        # TestTableRow = Row(*TestTableWithMap.get_spark_schema().names)
         row1 = Row(
             map_field={"key1": [["value1_1_1", "value1_1_2"], ["value1_2_1"]], "key2": [["value1_3_1"]]},
             dec_field=D("123.456"),
@@ -127,7 +120,7 @@ class TestPTable(TableModel):
         )
         expected_class_repr = """
 class TestPTable(TableModel):
-   class Meta:
+   class Meta(MetaConfig):
        name = "test_p_table"
 
    map_field = Map(key=String(), value=Array(element=Array(element=String())))
@@ -139,7 +132,7 @@ class TestPTable(TableModel):
         "input_data_type, expected_sql_type",
         [
             (BooleanType(), "BOOLEAN"),
-            (IntegerType(), "INTEGER"),
+            (IntegerType(), "INT"),
             (LongType(), "BIGINT"),
             (DoubleType(), "DOUBLE"),
             (DecimalType(3, 6), "DECIMAL(3,6)"),
@@ -149,15 +142,13 @@ class TestPTable(TableModel):
             (ArrayType(StringType()), "ARRAY<STRING>"),
             (MapType(StringType(), DecimalType(3, 6)), "MAP<STRING,DECIMAL(3,6)>"),
             (
-                StructType(
-                    [StructField("some_key", StringType()), StructField("some_val", ArrayType(DecimalType(3, 6)))]
-                ),
-                "STRUCT<some_key:STRING,some_val:ARRAY<DECIMAL(3,6)>>",
+                StructType([StructField("some_key", StringType()), StructField("some_val", ArrayType(DecimalType(3, 6)))]),
+                "STRUCT<some_key: STRING, some_val: ARRAY<DECIMAL(3,6)>>",
             ),
         ],
     )
     def test_pyspark_to_SQL_type(self, input_data_type, expected_sql_type):
-        sql_type = as_sql_type(input_data_type)
+        sql_type = spark_type_to_sql_type(input_data_type)
         assert sql_type == expected_sql_type
 
     @pytest.mark.parametrize(

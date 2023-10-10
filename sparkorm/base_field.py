@@ -2,25 +2,30 @@
 
 import copy
 from abc import ABC, abstractmethod
-from typing import Optional, Type, Any, Tuple, Sequence, Dict, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple, Type, cast
 
+from pyspark.sql import Column
 from pyspark.sql import functions as sql_funcs
-from pyspark.sql import types as sql_type, Column
-from pyspark.sql.types import StructField, DataType
-from sparkorm.exceptions import FieldNameError, FieldParentError, FieldValueValidationError
+from pyspark.sql import types as sql_type
+from pyspark.sql.types import DataType, StructField
+
+from sparkorm.exceptions import (
+    FieldNameError,
+    FieldParentError,
+    FieldValueValidationError,
+)
 
 if TYPE_CHECKING:
     from sparkorm import Struct
 
 PARTITIONED_BY_KEY = "partitioned_by"
 
+
 def _validate_value_type_for_field(accepted_types: Tuple[Type[Any], ...], value: Any) -> None:
     """Raise error if `value` is not compatible with types; None values are always permitted."""
     if value is not None and not isinstance(value, accepted_types):
         pretty_types = " ,".join("'" + accepted_type.__name__ + "'" for accepted_type in accepted_types)
-        raise FieldValueValidationError(
-            f"Value '{value}' has invalid type '{value.__class__.__name__}'. Allowed types are: {pretty_types}"
-        )
+        raise FieldValueValidationError(f"Value '{value}' has invalid type '{value.__class__.__name__}'. Allowed types are: {pretty_types}")
 
 
 class BaseField(ABC):
@@ -47,8 +52,13 @@ class BaseField(ABC):
     # Placeholder for "protected" style variables. (Again, represented only for convenience.)
     _parent_struct: Optional["Struct"] = None
 
-    def __init__(self, nullable: bool = DEFAULT_NULLABLE, name: Optional[str] = DEFAULT_NAME, metadata: Optional[Dict[str, Any]] = None,
-                 partitioned_by: bool = DEFAULT_PARTITIONED_BY):
+    def __init__(
+        self,
+        nullable: bool = DEFAULT_NULLABLE,
+        name: Optional[str] = DEFAULT_NAME,
+        metadata: Optional[Dict[str, Any]] = None,
+        partitioned_by: bool = DEFAULT_PARTITIONED_BY,
+    ):
         """
         Constructor for a base field.
 
@@ -119,10 +129,7 @@ class BaseField(ABC):
     def _set_contextual_name(self, value: str) -> None:
         # Intentionally not using an implicit setter here
         if self.__name_contextual is not None:
-            raise FieldNameError(
-                "Attempted to override a name that has already been set: "
-                f"'{value}' replacing '{self.__name_contextual}'"
-            )
+            raise FieldNameError("Attempted to override a name that has already been set: " f"'{value}' replacing '{self.__name_contextual}'")
         self.__name_contextual = value
 
     @property
@@ -131,11 +138,7 @@ class BaseField(ABC):
         name = self._resolve_field_name()
         if name is None:
             # pylint: disable=consider-using-f-string
-            raise FieldNameError(
-                "No field name found among: explicit name = {}, inferred name = {}".format(
-                    self.__name_explicit, self.__name_contextual
-                )
-            )
+            raise FieldNameError("No field name found among: explicit name = {}, inferred name = {}".format(self.__name_explicit, self.__name_contextual))
         return name
 
     def _resolve_field_name(self, default: Optional[str] = None) -> Optional[str]:
@@ -235,11 +238,11 @@ class BaseField(ABC):
         """True if `self` equals `other`."""
         # Subclasses should call this as part of their equality checks
         return (
-                isinstance(other, BaseField)
-                and self._is_nullable == other._is_nullable
-                and self._resolve_field_name() == other._resolve_field_name()  # may be None == None
-                and self._spark_type_class == other._spark_type_class
-                and self._metadata == other._metadata  # may be None == None
+            isinstance(other, BaseField)
+            and self._is_nullable == other._is_nullable
+            and self._resolve_field_name() == other._resolve_field_name()  # may be None == None
+            and self._spark_type_class == other._spark_type_class
+            and self._metadata == other._metadata  # may be None == None
         )
 
     def __str__(self) -> str:
@@ -288,6 +291,19 @@ class BaseField(ABC):
         name = spark_struct_field.name if use_name else None
         return cls(nullable=nullable, name=name, metadata=metadata, partitioned_by=partitioned_by)
 
+    def sql_col_def(self) -> str:
+        """The SQL type for this field that can be used for CREATE TABLE."""
+
+        name = self._field_name
+        is_nullable = self._is_nullable
+        nullable = "" if is_nullable else " NOT NULL"
+        sql_type_string = self.sql_type()
+
+        return f"{name} {sql_type_string}{nullable}"
+
+    @abstractmethod
+    def sql_type(self) -> str:
+        """The SQL type as string"""
 
 
 class AtomicField(BaseField):
@@ -327,9 +343,7 @@ class AtomicField(BaseField):
 
     def __eq__(self, other: Any) -> bool:
         """True if `self` equals `other`."""
-        return (
-                super().__eq__(other) and isinstance(other, AtomicField) and self._spark_data_type == other._spark_data_type
-        )
+        return super().__eq__(other) and isinstance(other, AtomicField) and self._spark_data_type == other._spark_data_type
 
     @abstractmethod
     def _validate_on_value(self, value: Any) -> None:

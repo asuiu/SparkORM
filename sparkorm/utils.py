@@ -151,35 +151,7 @@ def as_sql_type(data_type: DataType) -> str:
     """
     This will convert a PySpark data type to a SQL type.
     """
-    if isinstance(data_type, BooleanType):
-        return "BOOLEAN"
-    if isinstance(data_type, IntegerType):
-        return "INTEGER"
-    if isinstance(data_type, LongType):
-        return "BIGINT"
-    if isinstance(data_type, ByteType):
-        return "TINYINT"
-    if isinstance(data_type, DoubleType):
-        return "DOUBLE"
-    if isinstance(data_type, DecimalType):
-        return f"DECIMAL({data_type.precision},{data_type.scale})"
-    if isinstance(data_type, StringType):
-        return "STRING"
-    if isinstance(data_type, DateType):
-        return "DATE"
-    if isinstance(data_type, TimestampType):
-        return "TIMESTAMP"
-    if isinstance(data_type, ArrayType):
-        element_type = as_sql_type(data_type.elementType)
-        return f"ARRAY<{element_type}>"
-    if isinstance(data_type, MapType):
-        key_type = as_sql_type(data_type.keyType)
-        value_type = as_sql_type(data_type.valueType)
-        return f"MAP<{key_type},{value_type}>"
-    if isinstance(data_type, StructType):
-        fields = [f"{field.name}:{as_sql_type(field.dataType)}" for field in data_type.fields]
-        return f"STRUCT<{','.join(fields)}>"
-    raise ValueError(f"Not suported data type: {data_type}")
+    return spark_type_to_sql_type(data_type)
 
 
 def as_sql_value(value: SqlType) -> str:

@@ -5,22 +5,33 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from difflib import ndiff
 from inspect import isclass
-from typing import ClassVar, Optional, Mapping, Type, Any, Generator, Tuple, MutableMapping, Dict, List
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    Generator,
+    List,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Tuple,
+    Type,
+)
 
 from pyspark.sql import DataFrame
-from pyspark.sql.types import StructType, StructField, Row
+from pyspark.sql.types import Row, StructField, StructType
 
-from sparkorm.formatters import pretty_schema
-from sparkorm.schema_builder import schema as schematise
+from sparkorm.base_field import PARTITIONED_BY_KEY, BaseField
 from sparkorm.exceptions import (
+    FieldValueValidationError,
+    InvalidDataFrameError,
     InvalidStructError,
     StructImplementationError,
-    InvalidDataFrameError,
     StructInstantiationArgumentsError,
     StructInstantiationArgumentTypeError,
-    FieldValueValidationError,
 )
-from sparkorm.base_field import BaseField, PARTITIONED_BY_KEY
+from sparkorm.formatters import pretty_schema
+from sparkorm.schema_builder import schema as schematise
 
 
 @dataclass(frozen=True)
@@ -97,11 +108,7 @@ class Struct(BaseField):
         report = f"Struct schema...\n\n{pretty_struct}\n\n"
         report += f"DataFrame schema...\n\n{pretty_dframe}\n\n"
         report += "Diff of struct -> data frame...\n\n"
-        report += "\n".join(
-            line_diff
-            for line_diff in ndiff(pretty_dframe.splitlines(), pretty_struct.splitlines())
-            if not line_diff.startswith("?")
-        )
+        report += "\n".join(line_diff for line_diff in ndiff(pretty_dframe.splitlines(), pretty_struct.splitlines()) if not line_diff.startswith("?"))
         return ValidationResult(is_valid, pretty_struct=pretty_struct, pretty_data_frame=pretty_dframe, report=report)
 
     #
@@ -142,9 +149,7 @@ class Struct(BaseField):
 
         if field_names != list(dic.keys()):
             raise FieldValueValidationError(
-                f"Dict fields do not match struct fields. \n"
-                f"Struct fields: {', '.join(field_names)} \n"
-                f"Dict fields: {', '.join(dic.keys())}"
+                f"Dict fields do not match struct fields. \n" f"Struct fields: {', '.join(field_names)} \n" f"Dict fields: {', '.join(dic.keys())}"
             )
 
         for field in fields:
@@ -161,9 +166,7 @@ class Struct(BaseField):
         # Ensure a subclass does not break any base class functionality
         for child_prop, child_val in cls.__dict__.items():
             if (child_prop in Struct.__dict__) and (isinstance(child_val, BaseField)):
-                raise InvalidStructError(
-                    f"Field should not override inherited or reserved class properties: {child_prop}"
-                )
+                raise InvalidStructError(f"Field should not override inherited or reserved class properties: {child_prop}")
 
         # Extract internal metadata for this class, including parsing the fields
         cls._struct_metadata = _StructInnerMetadata.from_struct_class(cls)
@@ -185,9 +188,7 @@ class Struct(BaseField):
         if attr_name in {"_struct_metadata", "_valid_struct_metadata"}:
             return attr_value
 
-        resolved_field = self._valid_struct_metadata().resolve_field(
-            struct_object=self, attr_name=attr_name, attr_value=attr_value
-        )
+        resolved_field = self._valid_struct_metadata().resolve_field(struct_object=self, attr_name=attr_name, attr_value=attr_value)
         if resolved_field is not None:
             return resolved_field
 
@@ -264,12 +265,23 @@ class Struct(BaseField):
     def from_spark_struct_field(cls, spark_struct_field: StructField, use_name: bool = False) -> "BaseField":
         class SubClass(cls):
             pass
+
         nullable = spark_struct_field.nullable
         metadata = spark_struct_field.metadata
         partitioned_by = metadata.get(PARTITIONED_BY_KEY, False)
         name = spark_struct_field.name if use_name else None
 
         return SubClass(nullable=nullable, name=name, metadata=metadata, partitioned_by=partitioned_by)
+
+    def sql_col_def(self) -> str:
+        field_defs = (field.sql_col_def() for field in self._valid_struct_metadata().fields.values())
+        field_defs = ",".join(field_defs)
+        return field_defs
+
+    def sql_type(self) -> str:
+        field_defs = (field.sql_type() for field in self._valid_struct_metadata().fields.values())
+        field_defs = ",".join(field_defs)
+        return field_defs
 
 
 @dataclass(frozen=True)
@@ -287,9 +299,7 @@ class _StructInnerMetadata:
     @property
     def spark_struct(self) -> StructType:
         """Complete Spark StructType for the sparkorm Struct."""
-        return StructType(
-            [field._spark_struct_field for field in self.fields.values()]  # pylint: disable=protected-access
-        )
+        return StructType([field._spark_struct_field for field in self.fields.values()])  # pylint: disable=protected-access
 
     # Resolving of class attributes
     @staticmethod
@@ -390,9 +400,7 @@ class _FieldsExtractor:
             if not isinstance(attr_value, BaseField):
                 continue
             if attr_name.startswith("_"):
-                raise InvalidStructError(
-                    f"Fields must not begin with an underscore. Found: {attr_name} = {type(attr_value)}"
-                )
+                raise InvalidStructError(f"Fields must not begin with an underscore. Found: {attr_name} = {type(attr_value)}")
             yield (attr_name, attr_value)
 
     def _yield_included_structs(self) -> Generator[Struct, None, None]:
@@ -445,9 +453,7 @@ class _FieldsExtractor:
     # Helpers
 
     @staticmethod
-    def _safe_combine_fields(
-        fields_a: Mapping[str, BaseField], fields_b: Mapping[str, BaseField]
-    ) -> MutableMapping[str, BaseField]:
+    def _safe_combine_fields(fields_a: Mapping[str, BaseField], fields_b: Mapping[str, BaseField]) -> MutableMapping[str, BaseField]:
         """
         Add fields from `fields_b` into `fields_a`, returning a new copy.
 
@@ -459,8 +465,7 @@ class _FieldsExtractor:
                 combined[key] = value_b
             elif combined[key] != value_b:
                 raise InvalidStructError(
-                    f"Attempting to replace field '{key}' with field of different type: "
-                    f"{type(fields_a[key])} vs {type(fields_b[key])}"
+                    f"Attempting to replace field '{key}' with field of different type: " f"{type(fields_a[key])} vs {type(fields_b[key])}"
                 )
         return combined
 
@@ -489,9 +494,7 @@ class _Validator:
             StructImplementationError:
                 If class does not correctly implement any required structs.
         """
-        root_struct_metadata: _StructInnerMetadata = (
-            self.struct_class._valid_struct_metadata()  # pylint: disable=protected-access
-        )
+        root_struct_metadata: _StructInnerMetadata = self.struct_class._valid_struct_metadata()  # pylint: disable=protected-access
 
         for required_struct in self._yield_implements_structs():
             req_fields = required_struct._valid_struct_metadata().fields  # pylint: disable=protected-access
@@ -525,9 +528,7 @@ def _get_inner_meta_class(struct_class: Type[Struct]) -> Optional[Type[Any]]:
 
     if not isinstance(inner_meta_class, type):
         raise InvalidStructError(
-            f"The '{_META_INNER_CLASS_NAME}' "
-            "property of a Struct must only be used as an "
-            f"inner class. Found type {type(inner_meta_class)}"
+            f"The '{_META_INNER_CLASS_NAME}' " "property of a Struct must only be used as an " f"inner class. Found type {type(inner_meta_class)}"
         )
     return inner_meta_class
 
@@ -560,8 +561,7 @@ def _yield_structs_from_meta(source_struct_class: Type[Struct], attribute_name: 
         struct_instance = struct_class()
         if not isinstance(struct_instance, Struct):
             raise InvalidStructError(
-                "Encountered item in 'includes' list of 'Meta' inner class that is not a Struct or Struct "
-                f"subclass. Item at index {index} is {struct_class}"
+                "Encountered item in 'includes' list of 'Meta' inner class that is not a Struct or Struct " f"subclass. Item at index {index} is {struct_class}"
             )
 
         yield struct_instance

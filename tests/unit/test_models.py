@@ -6,12 +6,27 @@ import pytest
 from pyspark.pandas import DataFrame
 from pyspark.sql import SparkSession
 from pyspark.sql.catalog import Column
-from pyspark.sql.types import DecimalType, Row, StringType, StructField, TimestampType, DateType
+from pyspark.sql.types import (
+    DateType,
+    DecimalType,
+    Row,
+    StringType,
+    StructField,
+    TimestampType,
+)
 
-from sparkorm import Decimal, String, Date, Timestamp, Map, Array
+from sparkorm import Array, Date, Decimal, Map, String, Timestamp
 from sparkorm.exceptions import TableUpdateError
-from sparkorm.metadata_types import DBConfig, NoChangeStrategy, DropAndCreateStrategy, MetaConfig, SchemaUpdateStatus, LocationConfig, LocationType
-from sparkorm.models import TableModel, ViewModel, BaseModel
+from sparkorm.metadata_types import (
+    DBConfig,
+    DropAndCreateStrategy,
+    LocationConfig,
+    LocationType,
+    MetaConfig,
+    NoChangeStrategy,
+    SchemaUpdateStatus,
+)
+from sparkorm.models import BaseModel, TableModel, ViewModel
 from tests.utilities import convert_to_spark_types
 
 DEFAULT_DB_NAME = "db_test_test"

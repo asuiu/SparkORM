@@ -1,14 +1,37 @@
 import copy
 import decimal
 from datetime import date, datetime
-from typing import Type, Any, Tuple, TypeVar, Generic, Optional, Dict, cast, Sequence
+from typing import Any, Dict, Generic, Optional, Sequence, Tuple, Type, TypeVar, cast
 
-from pyspark.sql.types import ByteType, IntegerType, LongType, ShortType, DecimalType, StructField, DoubleType, FloatType, StringType, BinaryType, BooleanType, \
-    DateType, TimestampType, ArrayType, MapType, StructType
+from pyspark.sql.types import (
+    ArrayType,
+    BinaryType,
+    BooleanType,
+    ByteType,
+    DateType,
+    DecimalType,
+    DoubleType,
+    FloatType,
+    IntegerType,
+    LongType,
+    MapType,
+    ShortType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampType,
+)
 
-from sparkorm.struct import Struct
-from sparkorm.base_field import IntegralField, FractionalField, _validate_value_type_for_field, PARTITIONED_BY_KEY, AtomicField, BaseField
+from sparkorm.base_field import (
+    PARTITIONED_BY_KEY,
+    AtomicField,
+    BaseField,
+    FractionalField,
+    IntegralField,
+    _validate_value_type_for_field,
+)
 from sparkorm.exceptions import FieldValueValidationError
+from sparkorm.struct import Struct
 
 
 class Byte(IntegralField):
@@ -18,6 +41,9 @@ class Byte(IntegralField):
     def _spark_type_class(self) -> Type[ByteType]:
         return ByteType
 
+    def sql_type(self) -> str:
+        return "TINYINT"
+
 
 class Integer(IntegralField):
     """Field for Spark's IntegerType."""
@@ -26,13 +52,37 @@ class Integer(IntegralField):
     def _spark_type_class(self) -> Type[IntegerType]:
         return IntegerType
 
+    def sql_type(self) -> str:
+        return "INT"
+
 
 class Long(IntegralField):
     """Field for Spark's LongType."""
 
+    AUTO_INCREMENT_KEY = "auto_increment"
+
+    def __init__(self, *args, auto_increment: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        if auto_increment or self._metadata.get(self.AUTO_INCREMENT_KEY, False):
+            self._metadata[self.AUTO_INCREMENT_KEY] = True
+
+        self._auto_increment = auto_increment
+
     @property
     def _spark_type_class(self) -> Type[LongType]:
         return LongType
+
+    def sql_type(self) -> str:
+        return "BIGINT"
+
+    def sql_col_def(self) -> str:
+        name = self._field_name
+        is_nullable = self._is_nullable
+        nullable = "" if is_nullable else " NOT NULL"
+        sql_type_string = self.sql_type()
+        auto_incremented = " GENERATED ALWAYS AS IDENTITY" if self._auto_increment else ""
+
+        return f"{name} {sql_type_string}{auto_incremented}{nullable}"
 
 
 class Short(IntegralField):
@@ -42,9 +92,13 @@ class Short(IntegralField):
     def _spark_type_class(self) -> Type[ShortType]:
         return ShortType
 
+    def sql_type(self) -> str:
+        return "SMALLINT"
+
 
 class Decimal(FractionalField):
     """Field for Spark's DecimalType."""
+
     DEFAULT_PRECISION = 10
     DEFAULT_SCALE = 0
 
@@ -86,6 +140,10 @@ class Decimal(FractionalField):
         non_default_args = tuple(arg for arg in (precision_arg, scale_arg) if arg is not None)
         return non_default_args + base_args
 
+    def sql_type(self) -> str:
+        data_type = self._spark_data_type
+        return f"DECIMAL({data_type.precision},{data_type.scale})"
+
 
 class Double(FractionalField):
     """Field for Spark's DoubleType."""
@@ -97,6 +155,9 @@ class Double(FractionalField):
     def _validate_on_value(self, value: Any) -> None:
         super()._validate_on_value(value)
         _validate_value_type_for_field((float,), value)
+
+    def sql_type(self) -> str:
+        return "DOUBLE"
 
 
 class Float(FractionalField):
@@ -110,6 +171,9 @@ class Float(FractionalField):
         super()._validate_on_value(value)
         _validate_value_type_for_field((float,), value)
 
+    def sql_type(self) -> str:
+        return "FLOAT"
+
 
 class String(AtomicField):
     """Field for Spark's StringType."""
@@ -121,6 +185,9 @@ class String(AtomicField):
     def _validate_on_value(self, value: Any) -> None:
         super()._validate_on_value(value)
         _validate_value_type_for_field((str,), value)
+
+    def sql_type(self) -> str:
+        return "STRING"
 
 
 class Binary(AtomicField):
@@ -134,6 +201,9 @@ class Binary(AtomicField):
         super()._validate_on_value(value)
         _validate_value_type_for_field((bytearray,), value)
 
+    def sql_type(self) -> str:
+        return "BINARY"
+
 
 class Boolean(AtomicField):
     """Field for Spark's BooleanType."""
@@ -145,6 +215,9 @@ class Boolean(AtomicField):
     def _validate_on_value(self, value: Any) -> None:
         super()._validate_on_value(value)
         _validate_value_type_for_field((bool,), value)
+
+    def sql_type(self) -> str:
+        return "BOOLEAN"
 
 
 class Date(AtomicField):
@@ -158,6 +231,9 @@ class Date(AtomicField):
         super()._validate_on_value(value)
         _validate_value_type_for_field((date, datetime), value)
 
+    def sql_type(self) -> str:
+        return "DATE"
+
 
 class Timestamp(AtomicField):
     """Field for Spark's TimestampType."""
@@ -169,6 +245,9 @@ class Timestamp(AtomicField):
     def _validate_on_value(self, value: Any) -> None:
         super()._validate_on_value(value)
         _validate_value_type_for_field((datetime,), value)
+
+    def sql_type(self) -> str:
+        return "TIMESTAMP"
 
 
 ArrayElementType = TypeVar("ArrayElementType", bound=BaseField)  # pylint: disable=invalid-name
@@ -195,12 +274,12 @@ class Array(Generic[ArrayElementType], BaseField):
     e: ArrayElementType  # pylint: disable=invalid-name
 
     def __init__(
-            self,
-            element: ArrayElementType,
-            nullable: bool = True,
-            name: Optional[str] = None,
-            metadata: Optional[Dict[str, Any]] = None,
-            partitioned_by: bool = False,
+        self,
+        element: ArrayElementType,
+        nullable: bool = True,
+        name: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        partitioned_by: bool = False,
     ):
         super().__init__(nullable=nullable, name=name, metadata=metadata)
 
@@ -286,19 +365,13 @@ class Array(Generic[ArrayElementType], BaseField):
         if not isinstance(value, Sequence):
             raise FieldValueValidationError(f"Value for an array must be a sequence, not '{type(value).__name__}'")
         if isinstance(value, str):
-            raise FieldValueValidationError(
-                f"Value for an array must not be a string. Found value '{value}'. Did you mean to use a list of "
-                "strings?"
-            )
+            raise FieldValueValidationError(f"Value for an array must not be a string. Found value '{value}'. Did you mean to use a list of " "strings?")
         for item in value:
             element_field = self.e
             if not element_field._is_nullable and item is None:  # pylint: disable=protected-access
                 # to improve readability for errors, we preemptively validate the non-nullability of the array
                 # element here
-                msg = (
-                    "Encountered None value in array, but the element field of this array is specified as "
-                    "non-nullable"
-                )
+                msg = "Encountered None value in array, but the element field of this array is specified as " "non-nullable"
                 if self._resolve_field_name() is not None:
                     msg += f" (array field name = '{self._resolve_field_name()}')"
                 raise FieldValueValidationError(msg)
@@ -327,9 +400,12 @@ class Array(Generic[ArrayElementType], BaseField):
 
         nullable = spark_struct_field.nullable
         metadata = spark_struct_field.metadata
-        # partitioned_by = metadata.get(PARTITIONED_BY_KEY, False)
         name = spark_struct_field.name if use_name else None
         return cls(orm_field, nullable=nullable, name=name, metadata=metadata)
+
+    def sql_type(self) -> str:
+        element_sql_type = self.e.sql_type()
+        return f"ARRAY<{element_sql_type}>"
 
 
 KeyType = TypeVar("KeyType", bound=BaseField)  # pylint: disable=invalid-name
@@ -355,12 +431,12 @@ class Map(Generic[KeyType, ValueType], BaseField):
     v: ValueType  # pylint: disable=invalid-name
 
     def __init__(
-            self,
-            key: KeyType,
-            value: ValueType,
-            nullable: bool = True,
-            name: Optional[str] = None,
-            metadata: Optional[Dict[str, Any]] = None,
+        self,
+        key: KeyType,
+        value: ValueType,
+        nullable: bool = True,
+        name: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(nullable=nullable, name=name, metadata=metadata)
 
@@ -369,8 +445,7 @@ class Map(Generic[KeyType, ValueType], BaseField):
 
         if key._resolve_field_name() is not None:
             raise ValueError(
-                f"When using a field as the key field of a map, the field should not have a name. "
-                f"The field's name resolved to: {key._resolve_field_name()}"
+                f"When using a field as the key field of a map, the field should not have a name. " f"The field's name resolved to: {key._resolve_field_name()}"
             )
 
         self.k = cast(BaseField, key._replace_explicit_name(name=self._explicit_name))
@@ -477,20 +552,26 @@ class Map(Generic[KeyType, ValueType], BaseField):
         name = spark_struct_field.name if use_name else None
         return cls(orm_key_field, orm_value_field, nullable=nullable, name=name, metadata=metadata)
 
+    def sql_type(self) -> str:
+        key_type = self.k.sql_type()
+        value_type = self.v.sql_type()
+        return f"MAP<{key_type},{value_type}>"
 
-SPARK_TO_ORM_TYPE = {StringType:    String,
-                     BooleanType:   Boolean,
-                     IntegerType:   Integer,
-                     FloatType:     Float,
-                     DoubleType:    Double,
-                     DateType:      Date,
-                     TimestampType: Timestamp,
-                     LongType:      Long,
-                     ShortType:     Short,
-                     ByteType:      Byte,
-                     BinaryType:    Binary,
-                     DecimalType:   Decimal,
-                     ArrayType:     Array,
-                     MapType:       Map,
-                     StructType:    Struct,
-                     }
+
+SPARK_TO_ORM_TYPE = {
+    StringType: String,
+    BooleanType: Boolean,
+    IntegerType: Integer,
+    FloatType: Float,
+    DoubleType: Double,
+    DateType: Date,
+    TimestampType: Timestamp,
+    LongType: Long,
+    ShortType: Short,
+    ByteType: Byte,
+    BinaryType: Binary,
+    DecimalType: Decimal,
+    ArrayType: Array,
+    MapType: Map,
+    StructType: Struct,
+}

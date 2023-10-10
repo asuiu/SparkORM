@@ -1,19 +1,25 @@
 # Author: <andrei.suiu@gmail.com>
 import csv
-from typing import Sequence, Optional, Iterable, IO, Literal, Any
+from typing import IO, Any, Iterable, Literal, Optional, Sequence
 
-from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.types import (
-    StructType,
-)
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql.types import StructType
 from streamerate import stream
 
 from sparkorm.base_field import PARTITIONED_BY_KEY
 from sparkorm.exceptions import TableUpdateError
-from sparkorm.metadata_types import DBConfig, NoChangeStrategy, SchemaMigrationStrategy, DropAndCreateStrategy, SchemaUpdateStatus, MetaConfig, LocationConfig, \
-    LocationType
+from sparkorm.metadata_types import (
+    DBConfig,
+    DropAndCreateStrategy,
+    LocationConfig,
+    LocationType,
+    MetaConfig,
+    NoChangeStrategy,
+    SchemaMigrationStrategy,
+    SchemaUpdateStatus,
+)
 from sparkorm.struct import Struct
-from sparkorm.utils import spark_struct_to_sql_string, convert_to_struct_type
+from sparkorm.utils import convert_to_struct_type
 
 
 class BaseModel(Struct):
@@ -61,7 +67,7 @@ class BaseModel(Struct):
 
     @classmethod
     def _get_migration_strategy(cls) -> SchemaMigrationStrategy:
-        """ Default migration strategy is NoChangeStrategy """
+        """Default migration strategy is NoChangeStrategy"""
         if not hasattr(cls.Meta, "migration_strategy"):
             return NoChangeStrategy()
         assert isinstance(cls.Meta.migration_strategy, SchemaMigrationStrategy)
@@ -102,9 +108,7 @@ class TableModel(BaseModel):
                     self.create(or_replace=False)
                     return SchemaUpdateStatus.DROPPED_AND_CREATED
                 raise TableUpdateError(
-                    f"Table {full_name} already exists with different schema. "
-                    f"Existing schema: {struct_type}, "
-                    f"Expected schema: {spark_schema}"
+                    f"Table {full_name} already exists with different schema. " f"Existing schema: {struct_type}, " f"Expected schema: {spark_schema}"
                 )
             return SchemaUpdateStatus.SKIPPED
         else:
@@ -116,7 +120,7 @@ class TableModel(BaseModel):
         Raises exception if the table already exists.
         """
         full_name = self.get_full_name()
-        if hasattr(self.Meta, 'location'):
+        if hasattr(self.Meta, "location"):
             location = self.Meta.location
         else:
             location = None
@@ -133,11 +137,9 @@ class TableModel(BaseModel):
         spark_schema = self.get_spark_schema()
 
         fields = spark_schema.fields
-        column_names = stream(fields).map(spark_struct_to_sql_string).mkString(",")
-        create_statement = f"CREATE TABLE {full_name} ({column_names})"
-        partitioned_by_fields = [
-            field.name for field in fields if field.metadata.get(PARTITIONED_BY_KEY, False) is True
-        ]
+        field_defs = self.sql_col_def()
+        create_statement = f"CREATE TABLE {full_name} ({field_defs})"
+        partitioned_by_fields = [field.name for field in fields if field.metadata.get(PARTITIONED_BY_KEY, False) is True]
         if partitioned_by_fields:
             create_statement += f" PARTITIONED BY ({','.join(partitioned_by_fields)})"
 
