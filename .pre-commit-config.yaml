@@ -35,14 +35,15 @@ repos:
     hooks:
       - id: pylint
 
-  - repo: local
-    hooks:
-      - id: prospector
-        name: Python quality check
-        entry: prospector
-        language: python
-        types: [ python ]
-        exclude: ".*/tests/.*"
+#  - repo: local
+#    hooks:
+#      - id: prospector
+#        name: Python quality check
+#        entry: prospector
+#        language: python
+#        types: [ python ]
+#        exclude: ".*/tests/.*"
+
 
   - repo: https://github.com/charliermarsh/ruff-pre-commit
     # Ruff version.

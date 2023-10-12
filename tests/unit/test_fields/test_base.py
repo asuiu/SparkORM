@@ -180,17 +180,27 @@ class TestBaseField:
             (Integer(name="test_field"), "test_field INT"),
             (Long(name="test_field"), "test_field BIGINT"),
             (Long(name="test_field", auto_increment=True), "test_field BIGINT GENERATED ALWAYS AS IDENTITY"),
-            (Long(name="test_field", auto_increment=True, nullable=False), "test_field BIGINT GENERATED ALWAYS AS IDENTITY NOT NULL"),
+            (Long(name="test_field", auto_increment=True, nullable=False), "test_field BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY"),
+            (Long(name="test_field", nullable=False, sql_modifiers="DEFAULT 0"), "test_field BIGINT NOT NULL DEFAULT 0"),
+            (
+                Long(name="test_field", auto_increment=True, nullable=False, sql_modifiers="DEFAULT 1", comment="test_comment"),
+                'test_field BIGINT NOT NULL DEFAULT 1 COMMENT "test_comment" GENERATED ALWAYS AS IDENTITY',
+            ),
             (Double(name="test_field"), "test_field DOUBLE"),
             (Decimal(3, 6, name="test_field"), "test_field DECIMAL(3,6)"),
             (String(name="test_field"), "test_field STRING"),
+            (String(name="test_field", sql_modifiers='DEFAULT "test"', comment="test_comment"), 'test_field STRING DEFAULT "test" COMMENT "test_comment"'),
             (Date(name="test_field"), "test_field DATE"),
             (Timestamp(name="test_field"), "test_field TIMESTAMP"),
             (Array(String(), name="test_field"), "test_field ARRAY<STRING>"),
             (Map(String(), Decimal(3, 6), name="test_field"), "test_field MAP<STRING,DECIMAL(3,6)>"),
+            (
+                Date(name="test_field", sql_modifiers="GENERATED ALWAYS AS (CAST(birthDate AS DATE))"),
+                "test_field DATE GENERATED ALWAYS AS (CAST(birthDate AS DATE))",
+            ),
         ],
     )
-    def test_pyspark_to_SQL_type(self, input_data_type: BaseField, expected_sql_type):
+    def test_field_sql_col_def(self, input_data_type: BaseField, expected_sql_type):
         sql_type = input_data_type.sql_col_def()
         assert sql_type == expected_sql_type
 

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sparkorm"
-version = "1.2.11"  # do not edit manually. kept in sync with `tool.commitizen` config via automation
+version = "1.2.12"  # do not edit manually. kept in sync with `tool.commitizen` config via automation
 description = "SparkORM: Python Spark SQL & DataFrame schema management and basic Object Relational Mapping."
 authors = ["Andrei Suiu <andrei.suiu@gmail.com>"]
 repository = "https://github.com/asuiu/sparkorm"
@@ -20,8 +20,7 @@ invoke = "~2.0"
 black = ">=23.1"
 pycodestyle = "~2.10"
 pydocstyle = "~6.3"
-mypy = "~1.4.1"
-pylint = "~2.16"
+prospector = "~1.10"
 pytest-spark = "~0.6"
 termcolor = "~2.2.0"
 commitizen = "~2.42.1"
@@ -55,6 +54,9 @@ default_language_version = '3.8'
 ignore-patterns=["test_.*"]
 load-plugins=["pylint.extensions.no_self_use"]
 
+[tool.pylint.format]
+max-module-lines = 1000
+
 [tool.pylint.messages_control]
 max-line-length = 160
 disable = ["import-error",
@@ -72,6 +74,7 @@ max-args=10
 enable="useless-suppression"
 
 [tool.ruff]
+line-length = 160
 # Enable Pyflakes `E` and `F` codes by default.
 select = ["E", "F"]
 ignore = []
@@ -81,9 +84,10 @@ fixable = ["A", "B", "C", "D", "E", "F"]
 unfixable = []
 
 
+
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "1.2.11"  # do not edit manually. kept in sync with `tool.poetry` config via automation
+version = "1.2.12"  # do not edit manually. kept in sync with `tool.poetry` config via automation
 tag_format = "v$version"
 
 # Same as Black.

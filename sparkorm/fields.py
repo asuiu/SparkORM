@@ -76,13 +76,10 @@ class Long(IntegralField):
         return "BIGINT"
 
     def sql_col_def(self) -> str:
-        name = self._field_name
-        is_nullable = self._is_nullable
-        nullable = "" if is_nullable else " NOT NULL"
-        sql_type_string = self.sql_type()
-        auto_incremented = " GENERATED ALWAYS AS IDENTITY" if self._auto_increment else ""
-
-        return f"{name} {sql_type_string}{auto_incremented}{nullable}"
+        base_col_def = super().sql_col_def()
+        if self._auto_increment:
+            return f"{base_col_def} GENERATED ALWAYS AS IDENTITY"
+        return base_col_def
 
 
 class Short(IntegralField):

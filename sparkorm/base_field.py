@@ -34,6 +34,8 @@ class BaseField(ABC):
     DEFAULT_NULLABLE = True
     DEFAULT_NAME = None
     DEFAULT_PARTITIONED_BY = False
+    SQL_MODIFIERS_KEY = "sql_modifiers"
+    COMMENT_KEY = "comment"
 
     # Name management logic:
     # - Explicit name (`__name_explicit`): Set via constructor.
@@ -58,6 +60,8 @@ class BaseField(ABC):
         name: Optional[str] = DEFAULT_NAME,
         metadata: Optional[Dict[str, Any]] = None,
         partitioned_by: bool = DEFAULT_PARTITIONED_BY,
+        sql_modifiers: Optional[str] = None,
+        comment: Optional[str] = None,
     ):
         """
         Constructor for a base field.
@@ -68,12 +72,25 @@ class BaseField(ABC):
             metadata:
                 Metadata for this field. Metadata is a native feature of Spark and PySpark, allowing a field to be
                 annotated. If None, then metadata will be treated as an empty dictionary.
+            partitioned_by:
+                If True, this field will be used as a partitioning field when writing to a table.
+                    Else, this field will not be used as a partitioning field when writing to a table.
+            sql_modifiers:
+                 SQL column modifiers influence the behavior, characteristics, and constraints of a column, such as
+                 DEFAULT. Ex:  `Name VARCHAR(100) DEFAULT 'N/A'`
         """
         self.__nullable = nullable
         self.__name_explicit = name
         self.__metadata = {} if metadata is None else dict(metadata)
         if partitioned_by:
             self.__metadata[PARTITIONED_BY_KEY] = partitioned_by
+        if sql_modifiers is not None:
+            assert isinstance(sql_modifiers, str), f"sql_modifier must be a string, got {sql_modifiers.__class__}"
+            self.__metadata[self.SQL_MODIFIERS_KEY] = sql_modifiers
+
+        if comment is not None:
+            assert isinstance(comment, str), f"comment must be a string, got {comment.__class__}"
+            self.__metadata[self.COMMENT_KEY] = comment
 
     #
     # Nullability
@@ -298,8 +315,12 @@ class BaseField(ABC):
         is_nullable = self._is_nullable
         nullable = "" if is_nullable else " NOT NULL"
         sql_type_string = self.sql_type()
+        sql_modifier = self._metadata.get(self.SQL_MODIFIERS_KEY, None)
+        sql_modifier = " " + sql_modifier if sql_modifier else ""
+        sql_comment = self._metadata.get(self.COMMENT_KEY, None)
+        sql_comment = f' COMMENT "{sql_comment}"' if sql_comment else ""
 
-        return f"{name} {sql_type_string}{nullable}"
+        return f"{name} {sql_type_string}{nullable}{sql_modifier}{sql_comment}"
 
     @abstractmethod
     def sql_type(self) -> str:
