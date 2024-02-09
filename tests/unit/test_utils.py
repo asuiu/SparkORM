@@ -22,7 +22,12 @@ from pyspark.sql.types import (
 
 from sparkorm import Array, Decimal, Map, String
 from sparkorm.models import TableModel
-from sparkorm.utils import as_sql_type, as_sql_value, create_model_code, spark_type_to_sql_type
+from sparkorm.utils import (
+    as_sql_type,
+    as_sql_value,
+    create_model_code,
+    spark_type_to_sql_type,
+)
 from tests.unit.test_models import TestPartitionedTable
 from tests.utilities import convert_to_spark_types
 
@@ -154,6 +159,7 @@ class TestPTable(TableModel):
     @pytest.mark.parametrize(
         "input_value, expected_sql_value",
         [
+            (None, "NULL"),  # None input
             ("Hello", "'Hello'"),  # String input
             (True, "True"),  # Boolean True
             (False, "False"),  # Boolean False

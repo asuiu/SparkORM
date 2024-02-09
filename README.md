@@ -41,19 +41,19 @@ Instead, with `SparkORM`, schemas become a lot
 
 ```python
 class City(Struct):
-    name = String(nullable=False)
+    name = String()
     latitude = Float()
     longitude = Float()
-    date_created = Date(nullable=False, partitioned_by=True)
+    date_created = Date()
 
 class Conference(TableModel):
-    class Meta:        
+    class Meta:
         name = "conference_table"
     name = String(nullable=False)
     city = City()
 
 class LocalConferenceView(ViewModel):
-    class Meta:        
+    class Meta:
         name = "city_table"
 
 Conference(spark).create()
@@ -153,6 +153,26 @@ StructType([
 
 Many examples of how to use `SparkORM` can be found in
 [`examples`](https://github.com/asuiu/SparkORM/tree/master/examples).
+### ORM-like class-based schema definitions
+The `SparkORM` table schema definition is based on classes. Each column is a class and accepts a number of arguments that will be used to generate the schema.
+
+The following arguments are supported:
+- `nullable` - if the column is nullable or not (default: `True`)
+- `name` - the name of the column (default: the name of the attribute)
+- `comment` - the comment of the column (default: `None`)
+- `auto_increment` - if the column is auto incremented or not (default: `False`) Note: applicable only for `Long` columns
+- `sql_modifiers` - the SQL modifiers of the column (default: `None`)
+- `partitioned_by` - if the column is partitioned by or not (default: `False`)
+
+Examples:
+```python
+class City(TableModel):
+    name = String(nullable=False)
+    latitude = Long(auto_increment=True) # auto_increment is a special property that will generate a unique value for each row
+    longitude = Float(comment="Some comment")
+    date_created = Date(sql_modifiers="GENERATED ALWAYS AS (CAST(birthDate AS DATE))") # sql_modifiers will be added to the CREATE clause for the column
+    birthDate = Date(nullable=False, partitioned_by=True) # partitioned_by is a special property that will generate a partitioned_by clause for the column
+```
 
 ### Automated field naming
 
@@ -321,7 +341,7 @@ For convenience,
 Article.validate_data_frame(dframe).raise_on_invalid()
 ```
 
-will raise a `InvalidDataFrameError` (see `SparkORM.exceptions`) if the  
+will raise a `InvalidDataFrameError` (see `SparkORM.exceptions`) if the
 DataFrame is not valid.
 
 ### Creating an instance of a schema
@@ -524,7 +544,7 @@ schema_b = StructType([
     ))
 ])
 
-merged_schema = merge_schemas(schema_a, schema_b) 
+merged_schema = merge_schemas(schema_a, schema_b)
 ```
 
 results in a `merged_schema` that looks like:

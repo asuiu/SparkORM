@@ -49,6 +49,11 @@ class TestTable(TableModel):
     current_date = Date(nullable=False)
 
 
+class TestInheritedTable(TestTable):
+    class Meta(TestTable.Meta):
+        name = "inherited_table"
+
+
 class LocalTable(TableModel):
     """
     This table is used to test the case when the table is in the local database
@@ -169,6 +174,10 @@ class TestTableModels:
         actual = TestTable.get_full_name()
         assert "test_db.test_table" == actual
 
+    def test_inherited_table_full_name(self):
+        actual = TestInheritedTable.get_full_name()
+        assert "test_db.inherited_table" == actual
+
     def test_ensure_exists_table_happy_path(self):
         spark_mock = MagicMock(spec=SparkSession)
         spark_mock.catalog.tableExists.return_value = False
@@ -176,6 +185,15 @@ class TestTableModels:
         assert exists is SchemaUpdateStatus.CREATED
         spark_mock.sql.assert_called_once_with(
             "CREATE TABLE test_db.test_table (vendor_key STRING,invoice_date TIMESTAMP,amt DECIMAL(18,3),current_date DATE NOT NULL)"
+        )
+
+    def test_ensure_exists_on_inherited_table(self):
+        spark_mock = MagicMock(spec=SparkSession)
+        spark_mock.catalog.tableExists.return_value = False
+        exists = TestInheritedTable(spark_mock).ensure_exists()
+        assert exists is SchemaUpdateStatus.CREATED
+        spark_mock.sql.assert_called_once_with(
+            "CREATE TABLE test_db.inherited_table (vendor_key STRING,invoice_date TIMESTAMP,amt DECIMAL(18,3),current_date DATE NOT NULL)"
         )
 
     def test_ensure_exists_local_table(self):

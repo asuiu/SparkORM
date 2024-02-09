@@ -1,37 +1,40 @@
 # Author: <andrei.suiu@gmail.com>
 import re
+from datetime import date, datetime
 from numbers import Number
-from typing import Sequence, Dict, Union, Iterable
+from typing import Any, Dict, Iterable, Sequence, Union
 
 from _decimal import Decimal
 from pyspark.sql import Column, SparkSession
 from pyspark.sql.types import (
-    StructField,
-    DataType,
-    StringType,
-    BooleanType,
-    IntegerType,
-    FloatType,
-    DoubleType,
-    DateType,
-    TimestampType,
-    LongType,
-    ShortType,
-    ByteType,
-    BinaryType,
     ArrayType,
-    MapType,
+    BinaryType,
+    BooleanType,
+    ByteType,
+    DataType,
+    DateType,
     DecimalType,
+    DoubleType,
+    FloatType,
+    IntegerType,
+    LongType,
+    MapType,
+    ShortType,
+    StringType,
+    StructField,
     StructType,
-    _all_atomic_types, _parse_datatype_string,
+    TimestampType,
+    _all_atomic_types,
+    _parse_datatype_string,
 )
+from tsx import TS
 
 from sparkorm.base_field import PARTITIONED_BY_KEY
 from sparkorm.fields import SPARK_TO_ORM_TYPE
 from sparkorm.metadata_types import DBConfig
 
 DECIMAL_TYPE_RE = re.compile(r"decimal\((\d+),(\d+)\)", re.I)
-SqlPrimitive = Union[str, Number, bool, Decimal]
+SqlPrimitive = Union[str, Number, bool, Decimal, None]
 SqlType = Union[SqlPrimitive, Iterable[SqlPrimitive]]
 
 
@@ -45,17 +48,17 @@ def spark_struct_to_sql_string(spark_struct: StructField) -> str:
 
 def spark_type_to_sql_type(data_type: DataType) -> str:
     type_mapping = {
-        StringType:    "STRING",
-        BooleanType:   "BOOLEAN",
-        IntegerType:   "INT",
-        FloatType:     "FLOAT",
-        DoubleType:    "DOUBLE",
-        DateType:      "DATE",
+        StringType: "STRING",
+        BooleanType: "BOOLEAN",
+        IntegerType: "INT",
+        FloatType: "FLOAT",
+        DoubleType: "DOUBLE",
+        DateType: "DATE",
         TimestampType: "TIMESTAMP",
-        LongType:      "BIGINT",
-        ShortType:     "SMALLINT",
-        ByteType:      "TINYINT",
-        BinaryType:    "BINARY",
+        LongType: "BIGINT",
+        ShortType: "SMALLINT",
+        ByteType: "TINYINT",
+        BinaryType: "BINARY",
     }
     if isinstance(data_type, ArrayType):
         element_sql_type = spark_type_to_sql_type(data_type.elementType)
@@ -111,9 +114,10 @@ def convert_to_struct_type(table_columns: Sequence[Column]) -> StructType:
 
 
 def to_camel_case(table_name: str) -> str:
-    return ''.join(word.capitalize() for word in table_name.split('_'))
+    return "".join(word.capitalize() for word in table_name.split("_"))
 
 
+# pylint: disable=dangerous-default-value
 def create_model_code(spark: SparkSession, db_name: str, table_name: str, db_config_map: Dict[str, DBConfig] = {None: None}) -> str:
     """
     Be aware that if the table contains Map or Array types, this function requires real SparkSession and it will fail with mocked sessions.
@@ -133,7 +137,7 @@ def create_model_code(spark: SparkSession, db_name: str, table_name: str, db_con
     if db_config is not None:
         db_config_val = f"db_config = {db_config.__name__}"
     else:
-        db_config_val = ''
+        db_config_val = ""
     meta_repr = f"""   class Meta(MetaConfig):\n       name = "{table_name}"\n"""
     if db_config_val:
         meta_repr += f"       {db_config_val}\n"
@@ -155,12 +159,49 @@ def as_sql_type(data_type: DataType) -> str:
 
 
 def as_sql_value(value: SqlType) -> str:
+    if value is None:
+        return "NULL"
     if isinstance(value, str):
         return f"'{value}'"
     if isinstance(value, bool):
-        return 'True' if value else 'False'
+        return "True" if value else "False"
     if isinstance(value, Number):
         return str(value)
     if isinstance(value, Iterable):
         return f"({','.join(as_sql_value(v) for v in value)})"
     return str(value)
+
+
+# pylint: disable=too-many-return-statements, too-many-branches
+def get_spark_type(value: Any, spark_type: DataType) -> Any:
+    if value is None:
+        return None
+    if isinstance(spark_type, StringType):
+        return str(value)
+    if isinstance(spark_type, BooleanType):
+        return bool(value)
+    if isinstance(spark_type, IntegerType):
+        return int(value)
+    if isinstance(spark_type, FloatType):
+        return float(value)
+    if isinstance(spark_type, DoubleType):
+        return float(value)
+    if isinstance(spark_type, DateType):
+        return TS(value).as_dt().date()
+    if isinstance(spark_type, TimestampType):
+        if isinstance(value, (Number, Decimal, str)):
+            return TS(value).as_dt()
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, date):
+            return datetime(value.year, value.month, value.day)
+        return value
+    if isinstance(spark_type, LongType):
+        return int(value)
+    if isinstance(spark_type, ShortType):
+        return int(value)
+    if isinstance(spark_type, ByteType):
+        return int(value)
+    if isinstance(spark_type, BinaryType):
+        return bytes(value)
+    return value

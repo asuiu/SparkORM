@@ -1,9 +1,9 @@
 # Author: <andrei.suiu@gmail.com>
 import csv
-from typing import IO, Any, Iterable, Literal, Optional, Sequence
+from typing import IO, Any, Iterable, List, Literal, Optional, Sequence
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.types import StructType
+from pyspark.sql.types import Row, StructType
 from streamerate import stream
 
 from sparkorm.base_field import PARTITIONED_BY_KEY
@@ -19,7 +19,7 @@ from sparkorm.metadata_types import (
     SchemaUpdateStatus,
 )
 from sparkorm.struct import Struct
-from sparkorm.utils import convert_to_struct_type
+from sparkorm.utils import convert_to_struct_type, get_spark_type
 
 
 class BaseModel(Struct):
@@ -111,9 +111,9 @@ class TableModel(BaseModel):
                     f"Table {full_name} already exists with different schema. " f"Existing schema: {struct_type}, " f"Expected schema: {spark_schema}"
                 )
             return SchemaUpdateStatus.SKIPPED
-        else:
-            self.create()
-            return SchemaUpdateStatus.CREATED
+
+        self.create()
+        return SchemaUpdateStatus.CREATED
 
     def create(self, or_replace: bool = False) -> None:
         """
@@ -198,6 +198,24 @@ class TableModel(BaseModel):
     def as_df(self) -> DataFrame:
         full_name = self.get_full_name()
         return self._spark.table(full_name)
+
+    def to_spark_rows(self, rows: Sequence[Sequence[Any]]) -> List[Row]:
+        """
+        This will convert a Row with common data types to Spark types depending on the schema of the tableModel
+
+        Note: starting with PySpark 3, the Row class ignores the names of the arguments and takes solely the order of the arguments, so we need to order cols
+        """
+        spark_schema = self.get_spark_schema()
+        field_names = spark_schema.fieldNames()
+        spark_rows = []
+        for row in rows:
+            spark_row = []
+            for field, value in zip(field_names, row):
+                field = field.dataType(get_spark_type(value, field.dataType))
+                spark_row.append(field)
+            spark_rows.append(Row(*spark_row))
+
+        return spark_rows
 
 
 class ViewModel(BaseModel):
