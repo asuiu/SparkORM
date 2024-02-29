@@ -176,11 +176,12 @@ class TableModel(BaseModel):
 
         stream(values).batch(batch_size).fastmap(self._insert_batch, poolSize=threads).size()
 
-    def insert_from_csv(self, f: IO, batch_size: int = 500) -> None:
+    def insert_from_csv(self, f: IO, batch_size: int = 500, threads: int = 4) -> None:
         """
         Insert CSV data into the table.
         :param f: File object containing the CSV data
         :param batch_size: Number of rows to insert in a single insert statement
+        :param threads: Max number of threads to use for the insert operation. Default is 4.
         """
         csv_reader = csv.DictReader(f)
         # Ensure that all columns in the order list are present in the CSV file
@@ -190,7 +191,7 @@ class TableModel(BaseModel):
                 raise ValueError(f"Column '{column}' not found in the CSV file.")
 
         ordered_rows = stream(csv_reader).map(lambda row: [row[column] for column in columns_order])
-        self.insert(ordered_rows, batch_size)
+        self.insert(ordered_rows, batch_size, threads=threads)
 
     def insert_from_select(self, select_statement: str) -> DataFrame:
         full_name = self.get_full_name()
