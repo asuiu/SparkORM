@@ -153,7 +153,17 @@ class TableModel(BaseModel):
         full_name = self.get_full_name()
         self._spark.sql(f"DROP TABLE {full_name}")
 
-    def insert(self, values: Iterable[Sequence], batch_size: int = 500) -> None:
+    def _insert_batch(self, batch: stream[Sequence]):
+        """
+        :param batch: A stream of rows to insert
+        :param column_names: A comma-separated string of column names
+        """
+        column_names = ",".join([x.name for x in self.get_spark_schema().fields])
+        serialized_batch = batch.map(lambda row: f'({",".join(row)})').mkString(",")
+        insert_statement = f"INSERT INTO {self.get_full_name()} ( {column_names} ) VALUES {serialized_batch}"
+        self._spark.sql(insert_statement)
+
+    def insert(self, values: Iterable[Sequence], batch_size: int = 500, threads: int = 4) -> None:
         """
         Insert SQL expressions into the table. Attention, the values is an Iterable of rows which contain valid SQL expressions.
         Example:
@@ -161,14 +171,10 @@ class TableModel(BaseModel):
         Thus the strings will be quoted as SQL expressions, and the CURRENT_DATE and DATE("2012-01-01") will be inserted as is.
 
         :param batch_size: Number of rows to insert in a single insert statement
+        :param threads: Max number of threads to use for the insert operation. Default is 4.
         """
-        full_name = self.get_full_name()
-        column_names = ",".join([x.name for x in self.get_spark_schema().fields])
-        batches = stream(values).batch(batch_size)
-        for batch in batches:
-            serialized_batch = batch.map(lambda row: f'({",".join(row)})').mkString(",")
-            insert_statement = f"INSERT INTO {full_name} ( {column_names} ) VALUES {serialized_batch}"
-            self._spark.sql(insert_statement)
+
+        stream(values).batch(batch_size).fastmap(self._insert_batch, poolSize=threads).size()
 
     def insert_from_csv(self, f: IO, batch_size: int = 500) -> None:
         """
