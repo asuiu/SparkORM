@@ -28,6 +28,7 @@ from pyspark.sql.types import (
     _parse_datatype_string,
 )
 from tsx import TS
+from tsx.ts import BaseTS
 
 from sparkorm.base_field import PARTITIONED_BY_KEY
 from sparkorm.fields import SPARK_TO_ORM_TYPE
@@ -158,9 +159,18 @@ def as_sql_type(data_type: DataType) -> str:
     return spark_type_to_sql_type(data_type)
 
 
-def as_sql_value(value: SqlType) -> str:
+def as_sql_value(value: SqlType) -> str:  # pylint: disable=too-many-return-statements
     if value is None:
         return "NULL"
+    if isinstance(value, datetime):
+        # according to official documentation: https://spark.apache.org/docs/3.5.0/sql-ref-literals.html#timestamp-syntax
+        return f"TIMESTAMP '{value}'"
+    if isinstance(value, date):
+        # according to official documentation: https://spark.apache.org/docs/3.5.0/sql-ref-literals.html#datetime-literal
+        return f"DATE '{value}'"
+    if isinstance(value, BaseTS):
+        # according to official documentation: https://spark.apache.org/docs/3.5.0/sql-ref-literals.html#timestamp-syntax
+        return f"TIMESTAMP '{value.isoformat()}'"
     if isinstance(value, str):
         return f"'{value}'"
     if isinstance(value, bool):

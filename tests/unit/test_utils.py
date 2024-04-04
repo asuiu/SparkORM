@@ -1,3 +1,4 @@
+from datetime import date, datetime
 from decimal import Decimal as D
 from unittest.mock import MagicMock
 
@@ -19,15 +20,11 @@ from pyspark.sql.types import (
     StructType,
     TimestampType,
 )
+from tsx import TS
 
 from sparkorm import Array, Decimal, Map, String
 from sparkorm.models import TableModel
-from sparkorm.utils import (
-    as_sql_type,
-    as_sql_value,
-    create_model_code,
-    spark_type_to_sql_type,
-)
+from sparkorm.utils import as_sql_value, create_model_code, spark_type_to_sql_type
 from tests.unit.test_models import TestPartitionedTable
 from tests.utilities import convert_to_spark_types
 
@@ -44,7 +41,7 @@ class TestCreateModelCode:
         for table in spark_session.catalog.listTables():
             try:
                 spark_session.catalog.dropTempView(table.name)
-            except:
+            except Exception:
                 pass
         assert not spark_session.catalog.listTables()
 
@@ -171,6 +168,9 @@ class TestPTable(TableModel):
             ((), "()"),  # Empty tuple
             ([], "()"),  # Empty list
             ([1, "two", 3.0], "(1,'two',3.0)"),  # Mixed types in list
+            (datetime(2021, 1, 1, 12, 0, 0), "TIMESTAMP '2021-01-01 12:00:00'"),
+            (date(2021, 2, 28), "DATE '2021-02-28'"),
+            (TS("2021-01-01 12:00:00"), "TIMESTAMP '2021-01-01T12:00:00Z'"),
         ],
     )
     def test_to_sql_value(self, input_value, expected_sql_value):
