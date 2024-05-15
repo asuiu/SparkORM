@@ -173,7 +173,7 @@ def as_sql_value(value: SqlType) -> str:  # pylint: disable=too-many-return-stat
         return f"TIMESTAMP '{value.isoformat()}'"
     if isinstance(value, str):
         if "'" in value:
-            encoded_quotes = value.replace("'", "''")
+            encoded_quotes = value.replace("'", "\\'")
             return f"'{encoded_quotes}'"
         return f"'{value}'"
     if isinstance(value, bool):

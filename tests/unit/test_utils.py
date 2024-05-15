@@ -172,7 +172,8 @@ class TestPTable(TableModel):
             (date(2021, 2, 28), "DATE '2021-02-28'"),
             (TS("2021-01-01 12:00:00"), "TIMESTAMP '2021-01-01T12:00:00Z'"),
             ('arrayOf("a","b")', """'arrayOf("a","b")'"""),  # encode double quotes
-            ("arrayOf('a','b')", "'arrayOf(''a'',''b'')'"),  # encode single quotes
+            ("arrayOf('a','b')", "'arrayOf(\\'a\\',\\'b\\')'"),  # encode single quotes
+            ("""arrayOf('a','b')+("s1")""", """'arrayOf(\\'a\\',\\'b\\')+("s1")'"""),  # encode single and double quotes in a string
         ],
     )
     def test_to_sql_value(self, input_value, expected_sql_value):
