@@ -171,6 +171,8 @@ class TestPTable(TableModel):
             (datetime(2021, 1, 1, 12, 0, 0), "TIMESTAMP '2021-01-01 12:00:00'"),
             (date(2021, 2, 28), "DATE '2021-02-28'"),
             (TS("2021-01-01 12:00:00"), "TIMESTAMP '2021-01-01T12:00:00Z'"),
+            ('arrayOf("a","b")', """'arrayOf("a","b")'"""),  # encode double quotes
+            ("arrayOf('a','b')", "'arrayOf(''a'',''b'')'"),  # encode single quotes
         ],
     )
     def test_to_sql_value(self, input_value, expected_sql_value):

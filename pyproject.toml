@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sparkorm"
-version = "1.2.16"  # do not edit manually. kept in sync with `tool.commitizen` config via automation
+version = "1.2.17"  # do not edit manually. kept in sync with `tool.commitizen` config via automation
 description = "SparkORM: Python Spark SQL & DataFrame schema management and basic Object Relational Mapping."
 authors = ["Andrei Suiu <andrei.suiu@gmail.com>"]
 repository = "https://github.com/asuiu/sparkorm"
@@ -90,7 +90,7 @@ unfixable = []
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "1.2.16"  # do not edit manually. kept in sync with `tool.poetry` config via automation
+version = "1.2.17"  # do not edit manually. kept in sync with `tool.poetry` config via automation
 tag_format = "v$version"
 
 # Same as Black.

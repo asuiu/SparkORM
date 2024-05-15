@@ -172,6 +172,9 @@ def as_sql_value(value: SqlType) -> str:  # pylint: disable=too-many-return-stat
         # according to official documentation: https://spark.apache.org/docs/3.5.0/sql-ref-literals.html#timestamp-syntax
         return f"TIMESTAMP '{value.isoformat()}'"
     if isinstance(value, str):
+        if "'" in value:
+            encoded_quotes = value.replace("'", "''")
+            return f"'{encoded_quotes}'"
         return f"'{value}'"
     if isinstance(value, bool):
         return "True" if value else "False"
