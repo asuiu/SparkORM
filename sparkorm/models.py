@@ -96,7 +96,8 @@ class TableModel(BaseModel):
         spark_schema = self.get_spark_schema()
 
         if self._spark.catalog.tableExists(tableName=self.get_name(), dbName=self.get_db_name()):
-            if hasattr(self.Meta, "location") and self.Meta.location is not None:
+            meta_location_exists = (issubclass(self.Meta, MetaConfig) and self.Meta.get_location()) or (hasattr(self.Meta, "location") and self.Meta.location)
+            if meta_location_exists:
                 self.create(or_replace=True)
                 return SchemaUpdateStatus.REPLACED
             table_columns = self._spark.catalog.listColumns(tableName=self.get_name(), dbName=self.get_db_name())
@@ -120,10 +121,13 @@ class TableModel(BaseModel):
         Raises exception if the table already exists.
         """
         full_name = self.get_full_name()
-        if hasattr(self.Meta, "location"):
-            location = self.Meta.location
+        if issubclass(self.Meta, MetaConfig):
+            location = self.Meta.get_location()
         else:
-            location = None
+            if hasattr(self.Meta, "location"):
+                location = self.Meta.location
+            else:
+                location = None
         if location is not None:
             assert isinstance(location, LocationConfig), f"Invalid location: {location}"
             assert isinstance(location.type, LocationType), f"Invalid location type: {location.type}"
