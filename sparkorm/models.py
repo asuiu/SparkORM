@@ -95,7 +95,7 @@ class TableModel(BaseModel):
         full_name = self.get_full_name()
         spark_schema = self.get_spark_schema()
 
-        if self._spark.catalog.tableExists(tableName=self.get_name(), dbName=self.get_db_name()):
+        if self._spark.catalog.tableExists(full_name):
             meta_location_exists = (issubclass(self.Meta, MetaConfig) and self.Meta.get_location()) or (hasattr(self.Meta, "location") and self.Meta.location)
             if meta_location_exists:
                 self.create(or_replace=True)
