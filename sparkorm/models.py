@@ -1,6 +1,6 @@
 # Author: <andrei.suiu@gmail.com>
 import csv
-from typing import IO, Any, Iterable, List, Literal, Optional, Sequence
+from typing import IO, Any, Dict, Iterable, List, Literal, Optional, Sequence
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import Row, StructType
@@ -96,17 +96,33 @@ class TableModel(BaseModel):
         spark_schema = self.get_spark_schema()
 
         if self._spark.catalog.tableExists(full_name):
+            migration_strategy = self._get_migration_strategy()
             meta_location_exists = (issubclass(self.Meta, MetaConfig) and self.Meta.get_location()) or (hasattr(self.Meta, "location") and self.Meta.location)
             if meta_location_exists:
-                self.create(or_replace=True)
-                return SchemaUpdateStatus.REPLACED
+                if isinstance(migration_strategy, DropAndCreateStrategy):
+                    self.create(or_replace=True)
+                    return SchemaUpdateStatus.REPLACED
+                table_description_map = self._get_description(full_name)
+                if table_description_map["TYPE"] != "EXTERNAL":
+                    raise TableUpdateError(f"Table {full_name} already exists but is not External.")
+                if table_description_map["PROVIDER"] != self.Meta.get_location().type.value:
+                    raise TableUpdateError(
+                        f"Table {full_name} already exists but has different provider. Expected: {self.Meta.get_location().type.value}, "
+                        f"Found: {table_description_map['PROVIDER']}"
+                    )
+                if table_description_map["LOCATION"] != self.Meta.get_location().location:
+                    raise TableUpdateError(
+                        f"Table {full_name} already exists but has different location. Expected: {self.Meta.get_location().location}, "
+                        f"Found: {table_description_map['LOCATION']}"
+                    )
+
+            # meta_location might exist, but we need to check the schema as well
             table_columns = self._spark.catalog.listColumns(tableName=self.get_name(), dbName=self.get_db_name())
             struct_type = convert_to_struct_type(table_columns)
             if struct_type != spark_schema:
-                migration_strategy = self._get_migration_strategy()
                 if isinstance(migration_strategy, DropAndCreateStrategy):
                     self.drop()
-                    self.create(or_replace=False)
+                    self.create(or_replace=False, use_schema=True)
                     return SchemaUpdateStatus.DROPPED_AND_CREATED
                 raise TableUpdateError(
                     f"Table {full_name} already exists with different schema. " f"Existing schema: {struct_type}, " f"Expected schema: {spark_schema}"
@@ -116,11 +132,22 @@ class TableModel(BaseModel):
         self.create()
         return SchemaUpdateStatus.CREATED
 
-    def create(self, or_replace: bool = False) -> None:
+    def _get_description(self, full_name) -> Dict[str, str]:
+        rows = self._spark.sql(f"DESCRIBE EXTENDED {full_name}").collect()
+        table_description_map = {row.col_name.upper(): row.data_type.upper() for row in rows}
+        return table_description_map
+
+    def create(self, or_replace: bool = False, use_schema=True) -> None:
         """
         Raises exception if the table already exists.
         """
         full_name = self.get_full_name()
+        spark_schema = self.get_spark_schema()
+
+        fields = spark_schema.fields
+        field_defs = self.sql_col_def()
+        schema_str = f" ({field_defs})" if use_schema else ""
+
         if issubclass(self.Meta, MetaConfig):
             location = self.Meta.get_location()
         else:
@@ -135,14 +162,10 @@ class TableModel(BaseModel):
             location_type = location.type
             location_str = location.location
             or_replace_str = " OR REPLACE" if or_replace else ""
-            create_statement = f"CREATE{or_replace_str} TABLE {full_name} USING {location_type} LOCATION '{location_str}'"
+            create_statement = f"CREATE{or_replace_str} TABLE {full_name}{schema_str} USING {location_type} LOCATION '{location_str}'"
             self._spark.sql(create_statement)
             return
-        spark_schema = self.get_spark_schema()
-
-        fields = spark_schema.fields
-        field_defs = self.sql_col_def()
-        create_statement = f"CREATE TABLE {full_name} ({field_defs})"
+        create_statement = f"CREATE TABLE {full_name}{schema_str}"
         partitioned_by_fields = [field.name for field in fields if field.metadata.get(PARTITIONED_BY_KEY, False) is True]
         if partitioned_by_fields:
             create_statement += f" PARTITIONED BY ({','.join(partitioned_by_fields)})"

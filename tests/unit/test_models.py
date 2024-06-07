@@ -210,14 +210,25 @@ class TestTableModels:
         spark_mock.catalog.tableExists.return_value = False
         exists = TableFromLocation(spark_mock).ensure_exists()
         assert exists is SchemaUpdateStatus.CREATED
-        spark_mock.sql.assert_called_once_with("CREATE TABLE test_db.test_table USING DELTA LOCATION 'abfss://user@domain.com/path1/path2'")
+        spark_mock.sql.assert_called_once_with(
+            "CREATE TABLE test_db.test_table (vendor_key STRING,invoice_date TIMESTAMP,amt DECIMAL(18,3),current_date DATE NOT NULL) USING DELTA LOCATION 'abfss://user@domain.com/path1/path2'"
+        )
 
-    def test_ensure_exists_using_location_creates_with_replace_if_table_exists(self):
+    def test_ensure_exists_using_location_matches_all_properties(self):
         spark_mock = MagicMock(spec=SparkSession)
         spark_mock.catalog.tableExists.return_value = True
-        exists = TableFromLocation(spark_mock).ensure_exists()
-        assert exists is SchemaUpdateStatus.REPLACED
-        spark_mock.sql.assert_called_once_with("CREATE OR REPLACE TABLE test_db.test_table USING DELTA LOCATION 'abfss://user@domain.com/path1/path2'")
+        table_in_test = TableFromLocation(spark_mock)
+        DESCRIPTION_MAP = {"TYPE": "EXTERNAL", "PROVIDER": "DELTA", "LOCATION": "abfss://user@domain.com/path1/path2"}
+        table_in_test._get_description = MagicMock(return_value=DESCRIPTION_MAP)
+        spark_mock.catalog.listColumns.return_value = [
+            Column(name="vendor_key", description=None, dataType="string", nullable=True, isPartition=False, isBucket=False),
+            Column(name="invoice_date", description=None, dataType="timestamp", nullable=True, isPartition=False, isBucket=False),
+            Column(name="amt", description=None, dataType="decimal(18,3)", nullable=True, isPartition=False, isBucket=False),
+            Column(name="current_date", description=None, dataType="date", nullable=False, isPartition=False, isBucket=False),
+        ]
+
+        exists = table_in_test.ensure_exists()
+        assert exists is SchemaUpdateStatus.SKIPPED
 
     def test_ensure_exists_table_create_with_partitions(self):
         spark_mock = MagicMock(spec=SparkSession)
