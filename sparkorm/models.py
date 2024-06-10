@@ -111,7 +111,7 @@ class TableModel(BaseModel):
                         f"Table {full_name} already exists but has different provider. Expected: {self.Meta.get_location().type.value}, "
                         f"Found: {table_description_map['PROVIDER']}"
                     )
-                if table_description_map["LOCATION"] != self.Meta.get_location().location:
+                if table_description_map["LOCATION"].lower() != self.Meta.get_location().location.lower():
                     raise TableUpdateError(
                         f"Table {full_name} already exists but has different location. Expected: {self.Meta.get_location().location}, "
                         f"Found: {table_description_map['LOCATION']}"

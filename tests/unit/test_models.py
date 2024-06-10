@@ -78,7 +78,7 @@ class TableFromLocation(TableModel):
         name = "test_table"
         db_config = TestDB
         migration_strategy = NoChangeStrategy()
-        location = LocationConfig(LocationType.DELTA, "abfss://user@domain.com/path1/path2")
+        location = LocationConfig(LocationType.DELTA, "abfss://user@domain.com/path1/PATH2")
 
     vendor_key = String()
     invoice_date = Timestamp()
@@ -211,7 +211,7 @@ class TestTableModels:
         exists = TableFromLocation(spark_mock).ensure_exists()
         assert exists is SchemaUpdateStatus.CREATED
         spark_mock.sql.assert_called_once_with(
-            "CREATE TABLE test_db.test_table (vendor_key STRING,invoice_date TIMESTAMP,amt DECIMAL(18,3),current_date DATE NOT NULL) USING DELTA LOCATION 'abfss://user@domain.com/path1/path2'"
+            "CREATE TABLE test_db.test_table (vendor_key STRING,invoice_date TIMESTAMP,amt DECIMAL(18,3),current_date DATE NOT NULL) USING DELTA LOCATION 'abfss://user@domain.com/path1/PATH2'"
         )
 
     def test_ensure_exists_using_location_matches_all_properties(self):
