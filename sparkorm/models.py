@@ -100,8 +100,9 @@ class TableModel(BaseModel):
             meta_location_exists = (issubclass(self.Meta, MetaConfig) and self.Meta.get_location()) or (hasattr(self.Meta, "location") and self.Meta.location)
             if meta_location_exists:
                 if isinstance(migration_strategy, DropAndCreateStrategy):
-                    self.create(or_replace=True)
-                    return SchemaUpdateStatus.REPLACED
+                    self.drop()
+                    self.create(or_replace=False)
+                    return SchemaUpdateStatus.DROPPED_AND_CREATED
                 table_description_map = self._get_description(full_name)
                 if table_description_map["TYPE"] != "EXTERNAL":
                     raise TableUpdateError(f"Table {full_name} already exists but is not External.")
@@ -147,6 +148,9 @@ class TableModel(BaseModel):
         fields = spark_schema.fields
         field_defs = self.sql_col_def()
         schema_str = f" ({field_defs})" if use_schema else ""
+        or_replace_str = " OR REPLACE" if or_replace else ""
+        partitioned_by_fields = [field.name for field in fields if field.metadata.get(PARTITIONED_BY_KEY, False) is True]
+        partitioned_statement = f" PARTITIONED BY ({','.join(partitioned_by_fields)})" if partitioned_by_fields else ""
 
         if issubclass(self.Meta, MetaConfig):
             location = self.Meta.get_location()
@@ -155,20 +159,18 @@ class TableModel(BaseModel):
                 location = self.Meta.location
             else:
                 location = None
+
         if location is not None:
             assert isinstance(location, LocationConfig), f"Invalid location: {location}"
             assert isinstance(location.type, LocationType), f"Invalid location type: {location.type}"
             assert isinstance(location.location, str), f"Invalid location: {location.location}"
             location_type = location.type
             location_str = location.location
-            or_replace_str = " OR REPLACE" if or_replace else ""
-            create_statement = f"CREATE{or_replace_str} TABLE {full_name}{schema_str} USING {location_type} LOCATION '{location_str}'"
+
+            create_statement = f"CREATE{or_replace_str} TABLE {full_name}{schema_str} USING {location_type} LOCATION '{location_str}'{partitioned_statement}"
             self._spark.sql(create_statement)
             return
-        create_statement = f"CREATE TABLE {full_name}{schema_str}"
-        partitioned_by_fields = [field.name for field in fields if field.metadata.get(PARTITIONED_BY_KEY, False) is True]
-        if partitioned_by_fields:
-            create_statement += f" PARTITIONED BY ({','.join(partitioned_by_fields)})"
+        create_statement = f"CREATE{or_replace_str} TABLE {full_name}{schema_str}{partitioned_statement}"
 
         self._spark.sql(create_statement)
 
