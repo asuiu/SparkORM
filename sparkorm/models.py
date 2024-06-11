@@ -118,7 +118,7 @@ class TableModel(BaseModel):
                     )
 
             # meta_location might exist, but we need to check the schema as well
-            table_columns = self._spark.catalog.listColumns(tableName=self.get_name(), dbName=self.get_db_name())
+            table_columns = self._spark.catalog.listColumns(tableName=self.get_full_name())
             struct_type = convert_to_struct_type(table_columns)
             if struct_type != spark_schema:
                 if isinstance(migration_strategy, DropAndCreateStrategy):

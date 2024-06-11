@@ -124,7 +124,8 @@ def create_model_code(spark: SparkSession, db_name: str, table_name: str, db_con
     Be aware that if the table contains Map or Array types, this function requires real SparkSession and it will fail with mocked sessions.
     """
     class_name = to_camel_case(table_name)
-    table_columns = spark.catalog.listColumns(tableName=table_name, dbName=db_name)
+    db_name_prefix = f"{db_name}." if db_name else ""
+    table_columns = spark.catalog.listColumns(tableName=f"{db_name_prefix}{table_name}")
     struct_type = convert_to_struct_type(table_columns)
 
     field_reprs = []
