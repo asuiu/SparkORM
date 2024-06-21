@@ -1,5 +1,6 @@
 # Author: <andrei.suiu@gmail.com>
 import csv
+import logging
 from typing import IO, Any, Dict, Iterable, List, Literal, Optional, Sequence
 
 from pyspark.sql import DataFrame, SparkSession
@@ -103,7 +104,7 @@ class TableModel(BaseModel):
                     self.drop()
                     self.create(or_replace=False)
                     return SchemaUpdateStatus.DROPPED_AND_CREATED
-                table_description_map = self._get_description(full_name)
+                table_description_map = self._get_description()
                 if table_description_map["TYPE"] != "EXTERNAL":
                     raise TableUpdateError(f"Table {full_name} already exists but is not External.")
                 if table_description_map["PROVIDER"] != self.Meta.get_location().type.value:
@@ -133,10 +134,26 @@ class TableModel(BaseModel):
         self.create()
         return SchemaUpdateStatus.CREATED
 
-    def _get_description(self, full_name) -> Dict[str, str]:
+    def _get_description(self) -> Dict[str, str]:
+        full_name = self.get_full_name()
         rows = self._spark.sql(f"DESCRIBE EXTENDED {full_name}").collect()
+        for i, row in enumerate(rows):
+            if row.col_name.upper() == "":
+                rows = rows[i + 1 :]
+                break
         table_description_map = {row.col_name.upper(): row.data_type.upper() for row in rows}
         return table_description_map
+
+    def _get_location(self) -> Optional[str]:
+        if issubclass(self.Meta, MetaConfig):
+            return self.Meta.get_location()
+        if hasattr(self.Meta, "location"):
+            return self.Meta.location
+        return None
+
+    def _get_existing_location(self) -> Optional[str]:
+        table_description_map = self._get_description()
+        return table_description_map.get("LOCATION")
 
     def create(self, or_replace: bool = False, use_schema=True) -> None:
         """
@@ -152,13 +169,7 @@ class TableModel(BaseModel):
         partitioned_by_fields = [field.name for field in fields if field.metadata.get(PARTITIONED_BY_KEY, False) is True]
         partitioned_statement = f" PARTITIONED BY ({','.join(partitioned_by_fields)})" if partitioned_by_fields else ""
 
-        if issubclass(self.Meta, MetaConfig):
-            location = self.Meta.get_location()
-        else:
-            if hasattr(self.Meta, "location"):
-                location = self.Meta.location
-            else:
-                location = None
+        location = self._get_location()
 
         if location is not None:
             assert isinstance(location, LocationConfig), f"Invalid location: {location}"
@@ -180,7 +191,22 @@ class TableModel(BaseModel):
 
     def drop(self) -> None:
         full_name = self.get_full_name()
+        table_description_map = self._get_description()
+
         self._spark.sql(f"DROP TABLE {full_name}")
+        if table_description_map["TYPE"] in ("EXTERNAL", "MANAGED") and table_description_map["PROVIDER"] == LocationType.DELTA.value:
+            location = table_description_map["LOCATION"]
+            if location:  # this is the case where we run in the DBX notebook, and the table has external location
+                try:
+                    # pylint: disable=import-outside-toplevel
+                    from pyspark.dbutils import DBUtils
+                except ImportError:
+                    # we're not in a Databricks notebook
+                    # ToDo: this is a temporary hack, as normally we should throw an exception here, but we ignore it for testing simplification
+                    logging.warning(f"Dropping external table {full_name} data files, but DBUtils is not available.")
+                else:
+                    dbutils = DBUtils(self._spark)
+                    dbutils.fs.rm(location, recurse=True)
 
     def _insert_batch(self, batch: stream[Sequence]):
         """

@@ -18,7 +18,6 @@ from pyspark.sql.types import (
 from sparkorm import Array, Date, Decimal, Map, String, Timestamp
 from sparkorm.exceptions import TableUpdateError
 from sparkorm.metadata_types import (
-    DBConfig,
     DropAndCreateStrategy,
     LocationConfig,
     LocationType,
@@ -27,15 +26,8 @@ from sparkorm.metadata_types import (
     SchemaUpdateStatus,
 )
 from sparkorm.models import BaseModel, TableModel, ViewModel
+from tests.functional.conftest import TestDB, class_fixture, session_fixture
 from tests.utilities import convert_to_spark_types
-
-DEFAULT_DB_NAME = "db_test_test"
-
-
-class TestDB(DBConfig):
-    @classmethod
-    def get_name(cls) -> str:
-        return "test_db"
 
 
 class TestTable(TableModel):
@@ -47,6 +39,9 @@ class TestTable(TableModel):
     invoice_date = Timestamp()
     amt = Decimal(18, 3)
     current_date = Date(nullable=False)
+
+    def _get_description(self):
+        return {"LOCATION": "abfss://", "TYPE": "EXTERNAL", "PROVIDER": "DELTA"}
 
 
 class TestInheritedTable(TestTable):
@@ -125,21 +120,23 @@ class TestView(ViewModel):
         name = "test_view"
 
 
+@pytest.mark.usefixtures(session_fixture.__name__, class_fixture.__name__)
 class TestTableModels:
     @pytest.fixture(scope="function")
-    def setup_clean_spark_catalog(self, spark_session: SparkSession):
+    def setup_clean_spark_catalog(self):
+        spark = self.spark
         # Assure no tables/views exist before the test
-        assert not spark_session.catalog.listTables()
+        assert not spark.catalog.listTables()
 
         yield  # This allows the test to run
 
         # Clean up tables/views after the test
-        for table in spark_session.catalog.listTables():
+        for table in spark.catalog.listTables():
             try:
-                spark_session.catalog.dropTempView(table.name)
-            except:
+                spark.catalog.dropTempView(table.name)
+            except:  # noqa: E722
                 pass
-        assert not spark_session.catalog.listTables()
+        assert not spark.catalog.listTables()
 
     def test_raise_exception_on_invalid_meta(self):
         with pytest.raises(AssertionError):
@@ -246,37 +243,40 @@ class TestTableModels:
         exists = TestPartitionedTable(spark_mock).ensure_exists()
         assert exists is SchemaUpdateStatus.CREATED
         spark_mock.sql.assert_called_once_with(
-            "CREATE TABLE test_p_table (vendor_key STRING,invoice_date TIMESTAMP,amt DECIMAL(18,3),current_date DATE NOT NULL) PARTITIONED BY (invoice_date,current_date)"
+            "CREATE TABLE test_p_table (vendor_key STRING,invoice_date TIMESTAMP,amt DECIMAL(18,3),current_date DATE NOT NULL)"
+            " PARTITIONED BY (invoice_date,current_date)"
         )
 
-    def test_ensure_exists_table_does_nothing_if_exists(self, setup_clean_spark_catalog, spark_session: SparkSession):
+    def test_ensure_exists_table_does_nothing_if_exists(self, setup_clean_spark_catalog):
+        spark = self.spark
         TestTableRow = Row(*LocalTable.get_spark_schema().names)
         data = [
             TestTableRow("VendorA", "2023-01-01 12:00:00", 123.456, "2023-01-01"),
             TestTableRow("VendorB", "2023-02-01 14:00:00", 789.101, "2023-02-01"),
         ]
         rows = convert_to_spark_types(data, LocalTable.get_spark_schema())
-        df = spark_session.createDataFrame(rows, schema=LocalTable.get_spark_schema())
+        df = spark.createDataFrame(rows, schema=LocalTable.get_spark_schema())
         df.createOrReplaceTempView(LocalTable.get_full_name())
-        exists = LocalTable(spark_session).ensure_exists()
+        exists = LocalTable(spark).ensure_exists()
         assert exists is SchemaUpdateStatus.SKIPPED
 
-    def test_ensure_exists_table_raises_on_distinct_table_exists(self, setup_clean_spark_catalog, spark_session: SparkSession):
+    def test_ensure_exists_table_raises_on_distinct_table_exists(self, setup_clean_spark_catalog):
         """
         We expect the create method to raise an error if the table exists with a different schema.
         In our case we'll pass the same schema, but because we can't create real tables in the test environment, there will be view, which is not partitioned,
             and the lack of partitioned fields will cause the error.
         """
+        spark = self.spark
         TestTableRow = Row(*TestPartitionedTable.get_spark_schema().names)
         data = [
             TestTableRow("VendorA", "2023-01-01 12:00:00", 123.456, "2023-01-01"),
             TestTableRow("VendorB", "2023-02-01 14:00:00", 789.101, "2023-02-01"),
         ]
         rows = convert_to_spark_types(data, TestPartitionedTable.get_spark_schema())
-        df = spark_session.createDataFrame(rows, schema=TestPartitionedTable.get_spark_schema())
+        df = spark.createDataFrame(rows, schema=TestPartitionedTable.get_spark_schema())
         df.createOrReplaceTempView(TestPartitionedTable.get_full_name())
         with pytest.raises(TableUpdateError):
-            TestPartitionedTable(spark_session).ensure_exists()
+            TestPartitionedTable(spark).ensure_exists()
 
     def test_ensure_exists_drops_existing_table_if_DropAndCreateStrategy_without_location(self):
         spark_mock = MagicMock(spec=SparkSession)
@@ -305,6 +305,9 @@ class TestTableModels:
             vendor_key = String()
             invoice_date = Timestamp(partitioned_by=True)
 
+            def _get_description(self):
+                return {"LOCATION": "abfss://", "TYPE": "EXTERNAL", "PROVIDER": "DELTA"}
+
         spark_mock = MagicMock(spec=SparkSession)
         spark_mock.catalog.tableExists.return_value = True
         table_model_in_test = TableInTest(spark_mock)
@@ -313,7 +316,8 @@ class TestTableModels:
         expected_calls = [
             call("DROP TABLE test_db.test_table"),
             call(
-                "CREATE TABLE test_db.test_table (vendor_key STRING,invoice_date TIMESTAMP) USING DELTA LOCATION 'abfss://user@domain.com/path1/path2' PARTITIONED BY (invoice_date)"
+                "CREATE TABLE test_db.test_table (vendor_key STRING,invoice_date TIMESTAMP)"
+                " USING DELTA LOCATION 'abfss://user@domain.com/path1/path2' PARTITIONED BY (invoice_date)"
             ),
         ]
 
@@ -340,8 +344,9 @@ class TestTableModels:
         TestTable(spark_mock).insert(values, batch_size=2)
         actual_insert_stms = [call[0][0] for call in spark_mock.sql.call_args_list]
         expected_stms = [
-            'INSERT INTO test_db.test_table ( vendor_key,invoice_date,amt,current_date ) VALUES ("VendorA","2023-01-01 12:00:00",123.456,"2023-01-01"),("VendorB","2023-02-01 14:00:00",789.101,"2023-02-01")',
-            'INSERT INTO test_db.test_table ( vendor_key,invoice_date,amt,current_date ) VALUES ("VendorC","2023-03-01 16:00:00",101.112,"2023-03-01")',
+            "INSERT INTO test_db.test_table ( vendor_key,invoice_date,amt,current_date ) VALUES"
+            ' ("VendorA","2023-01-01 12:00:00",123.456,"2023-01-01"),("VendorB","2023-02-01 14:00:00",789.101,"2023-02-01")',
+            "INSERT INTO test_db.test_table ( vendor_key,invoice_date,amt,current_date )" ' VALUES ("VendorC","2023-03-01 16:00:00",101.112,"2023-03-01")',
         ]
 
         assert actual_insert_stms == expected_stms
@@ -377,9 +382,9 @@ class TestTableModels:
 
     # ignore this test
     @pytest.mark.skip(reason="Skip this test due to the impossibility of local Spark instance to create tables without an installed Hadoop")
-    def test_insert_from_df(self, setup_clean_spark_catalog, spark_session: SparkSession):
+    def test_insert_from_df(self, setup_clean_spark_catalog):
         """Tests if the insert_from_df() works properly when receiving a DataFrame with default "error" mode"""
-        # DropCreateStrategyTable(spark_session).ensure_exists()
+        spark = self.spark
         schema = DropCreateStrategyTable.get_spark_schema()
         full_name = DropCreateStrategyTable.get_full_name()
         TestTableRow = Row(*schema.names)
@@ -388,10 +393,10 @@ class TestTableModels:
             TestTableRow("VendorB", 789.101),
         ]
         rows = convert_to_spark_types(data, schema)
-        df = spark_session.createDataFrame(rows, schema=schema)
+        df = spark.createDataFrame(rows, schema=schema)
         df.createOrReplaceTempView(full_name)  # Create a temporary view
-        DropCreateStrategyTable(spark_session).insert_from_df(df)
-        assert spark_session.catalog.listTables() == [DropCreateStrategyTable.get_full_name()]
+        DropCreateStrategyTable(spark).insert_from_df(df)
+        assert spark.catalog.listTables() == [DropCreateStrategyTable.get_full_name()]
 
     def test_drop_create_strategy(self):
         """
@@ -458,15 +463,16 @@ class TestTableModels:
         TestTable(spark_mock).sql(f"SELECT * FROM {TestTable.get_full_name()}")
         spark_mock.sql.assert_called_once_with("SELECT * FROM test_db.test_table")
 
-    def test_sql_functional_nominal(self, spark_session: SparkSession, setup_clean_spark_catalog):
+    def test_sql_functional_nominal(self, setup_clean_spark_catalog):
+        spark = self.spark
         TestTableRow = Row(*LocalTable.get_spark_schema().names)
         data = [
             TestTableRow("VendorA", "2023-01-01 12:00:00", 123.456, "2023-01-01"),
             TestTableRow("VendorB", "2023-02-01 14:00:00", 789.101, "2023-02-01"),
         ]
-        table = LocalTable(spark_session)
+        table = LocalTable(spark)
         rows = convert_to_spark_types(data, table.get_spark_schema())
-        df = spark_session.createDataFrame(rows, schema=table.get_spark_schema())
+        df = spark.createDataFrame(rows, schema=table.get_spark_schema())
         df.createOrReplaceTempView(table.get_full_name())
         res_df = table.sql(f"SELECT * FROM {table.get_full_name()}")
         pdf = res_df.toPandas()

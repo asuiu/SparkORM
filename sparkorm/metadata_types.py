@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from enum import auto, Enum
-from typing import Optional, Type, Union, NamedTuple
+from enum import Enum, auto
+from typing import NamedTuple, Optional, Type, Union
 
+from pyspark.sql import SparkSession
 from strenum import StrEnum
 
 
@@ -9,7 +10,19 @@ class DBConfig(ABC):
     @classmethod
     @abstractmethod
     def get_name(cls) -> str:
-        ...
+        raise NotImplementedError()
+
+    def __init__(self, spark: SparkSession) -> None:
+        self._spark = spark
+
+    def ensure_exists(self, location: Optional[str] = None) -> None:
+        if location:
+            self._spark.sql(f"CREATE DATABASE IF NOT EXISTS {self.get_name()} LOCATION '{location}'")
+            return
+        self._spark.sql(f"CREATE DATABASE IF NOT EXISTS {self.get_name()}")
+
+    def drop(self) -> None:
+        self._spark.sql(f"DROP DATABASE IF EXISTS {self.get_name()} CASCADE")
 
 
 class SchemaMigrationStrategy(ABC):
@@ -19,7 +32,7 @@ class SchemaMigrationStrategy(ABC):
 
 
 class DropAndCreateStrategy(SchemaMigrationStrategy):
-    """ Drop the table and create it again """
+    """Drop the table and create it again"""
 
 
 class AddAndDropStrategy(SchemaMigrationStrategy):
@@ -38,10 +51,12 @@ class SchemaUpdateStatus(Enum):
     """
     Status of the schema update
     """
+
     CREATED = auto()
     SKIPPED = auto()
     DROPPED_AND_CREATED = auto()
     REPLACED = auto()
+
 
 class LocationType(StrEnum):
     TEXT = auto()
@@ -55,9 +70,11 @@ class LocationType(StrEnum):
     DELTA = auto()
     LIBSVM = auto()
 
+
 class LocationConfig(NamedTuple):
     type: LocationType
     location: str
+
 
 class MetaConfig(ABC):
     migration_strategy: SchemaMigrationStrategy = NoChangeStrategy()
