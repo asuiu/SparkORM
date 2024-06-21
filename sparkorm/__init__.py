@@ -1,27 +1,27 @@
 """Python Spark SQL DataFrame schema management for sensible humans."""
 
 from sparkorm import exceptions
-from sparkorm.accessors import path_col, path_seq, path_str, name, struct_field
+from sparkorm.accessors import name, path_col, path_seq, path_str, struct_field
 from sparkorm.fields import (
+    Array,
+    Binary,
+    Boolean,
     Byte,
-    Integer,
-    Long,
-    Short,
+    Date,
     Decimal,
     Double,
     Float,
-    String,
-    Binary,
-    Boolean,
-    Date,
-    Timestamp,
-    Array,
+    Integer,
+    Long,
     Map,
+    Short,
+    String,
+    Timestamp,
 )
 from sparkorm.formatters import pretty_schema
 from sparkorm.schema_builder import schema
 from sparkorm.schema_merger import merge_schemas
-from sparkorm.struct import ValidationResult
+from sparkorm.struct import Struct, ValidationResult
 
 __all__ = [
     "schema",
@@ -34,7 +34,6 @@ __all__ = [
     "ValidationResult",
     "merge_schemas",
     "exceptions",
-
     "Byte",
     "Integer",
     "Long",
@@ -49,5 +48,5 @@ __all__ = [
     "Timestamp",
     "Array",
     "Map",
-
+    "Struct",
 ]
