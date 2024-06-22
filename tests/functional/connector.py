@@ -50,6 +50,7 @@ class SparkConnector:
             .config("spark.default.parallelism", "2")
             .config("spark.sql.shuffle.partitions", "5")  # Reduce number of shuffle partitions
             .config("spark.sql.session.timeZone", "UTC")  # Set timezone to UTC
+            .config("javax.jdo.option.ConnectionURL", f"jdbc:derby:;databaseName={hive_store_dir}/metastore_db;create=true")
             .enableHiveSupport()  # Enable Hive support
             .getOrCreate()
         )

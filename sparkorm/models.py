@@ -1,6 +1,7 @@
 # Author: <andrei.suiu@gmail.com>
 import csv
 import logging
+import traceback
 from typing import IO, Any, Dict, Iterable, List, Literal, Optional, Sequence
 
 from pyspark.sql import DataFrame, SparkSession
@@ -93,10 +94,9 @@ class TableModel(BaseModel):
         If the table exists, but has a different structure, an exception will be raised.
         Returns True if the table already exists and has the correct structure.
         """
-        full_name = self.get_full_name()
-        spark_schema = self.get_spark_schema()
-
-        if self._spark.catalog.tableExists(full_name):
+        if self.exists():
+            full_name = self.get_full_name()
+            spark_schema = self.get_spark_schema()
             migration_strategy = self._get_migration_strategy()
             meta_location_exists = (issubclass(self.Meta, MetaConfig) and self.Meta.get_location()) or (hasattr(self.Meta, "location") and self.Meta.location)
             if meta_location_exists:
@@ -119,13 +119,14 @@ class TableModel(BaseModel):
                     )
 
             # meta_location might exist, but we need to check the schema as well
-            table_columns = self._spark.catalog.listColumns(tableName=self.get_full_name())
-            struct_type = convert_to_struct_type(table_columns)
-            if struct_type != spark_schema:
+            if not self._has_valid_schema():
                 if isinstance(migration_strategy, DropAndCreateStrategy):
                     self.drop()
                     self.create(or_replace=False, use_schema=True)
                     return SchemaUpdateStatus.DROPPED_AND_CREATED
+
+                table_columns = self._spark.catalog.listColumns(tableName=self.get_full_name())
+                struct_type = convert_to_struct_type(table_columns)
                 raise TableUpdateError(
                     f"Table {full_name} already exists with different schema. " f"Existing schema: {struct_type}, " f"Expected schema: {spark_schema}"
                 )
@@ -133,6 +134,17 @@ class TableModel(BaseModel):
 
         self.create()
         return SchemaUpdateStatus.CREATED
+
+    def exists(self):
+        full_name = self.get_full_name()
+        return self._spark.catalog.tableExists(full_name)
+
+    def reset(self) -> None:
+        """
+        Drops the table and creates it again.
+        """
+        self.drop()
+        self.create()
 
     def _get_description(self) -> Dict[str, str]:
         full_name = self.get_full_name()
@@ -154,6 +166,12 @@ class TableModel(BaseModel):
     def _get_existing_location(self) -> Optional[str]:
         table_description_map = self._get_description()
         return table_description_map.get("LOCATION")
+
+    def _has_valid_schema(self) -> bool:
+        table_columns = self._spark.catalog.listColumns(tableName=self.get_full_name())
+        struct_type = convert_to_struct_type(table_columns)
+        spark_schema = self.get_spark_schema()
+        return struct_type == spark_schema
 
     def create(self, or_replace: bool = False, use_schema=True) -> None:
         """
@@ -203,10 +221,14 @@ class TableModel(BaseModel):
                 except ImportError:
                     # we're not in a Databricks notebook
                     # ToDo: this is a temporary hack, as normally we should throw an exception here, but we ignore it for testing simplification
-                    logging.warning(f"Dropping external table {full_name} data files, but DBUtils is not available.")
+                    logging.error(f"Dropping external table {full_name} data files, but DBUtils is not available.")
                 else:
-                    dbutils = DBUtils(self._spark)
-                    dbutils.fs.rm(location, recurse=True)
+                    try:
+                        dbutils = DBUtils(self._spark)
+                        dbutils.fs.rm(location, recurse=True)
+                    except Exception as e:
+                        logging.exception(f"Failed to drop external table {full_name} data files with location: {location}: {e}\n{traceback.format_exc()}")
+                        raise e
 
     def _insert_batch(self, batch: stream[Sequence]):
         """
