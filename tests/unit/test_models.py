@@ -215,7 +215,7 @@ class TestTableModels:
         spark_mock = MagicMock(spec=SparkSession)
         spark_mock.catalog.tableExists.return_value = True
         table_in_test = TableFromLocation(spark_mock)
-        DESCRIPTION_MAP = {"TYPE": "EXTERNAL", "PROVIDER": "DELTA", "LOCATION": "abfss://user@domain.com/path1/path2"}
+        DESCRIPTION_MAP = {"TYPE": "EXTERNAL", "PROVIDER": "DELTA", "LOCATION": "abfss://user@domain.com/path1/PATH2"}
         table_in_test._get_description = MagicMock(return_value=DESCRIPTION_MAP)
         spark_mock.catalog.listColumns.return_value = [
             Column(name="vendor_key", description=None, dataType="string", nullable=True, isPartition=False, isBucket=False),

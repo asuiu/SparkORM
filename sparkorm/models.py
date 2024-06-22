@@ -105,14 +105,14 @@ class TableModel(BaseModel):
                     self.create(or_replace=False)
                     return SchemaUpdateStatus.DROPPED_AND_CREATED
                 table_description_map = self._get_description()
-                if table_description_map["TYPE"] != "EXTERNAL":
+                if table_description_map["TYPE"].upper() != "EXTERNAL":
                     raise TableUpdateError(f"Table {full_name} already exists but is not External.")
-                if table_description_map["PROVIDER"] != self.Meta.get_location().type.value:
+                if table_description_map["PROVIDER"].upper() != self.Meta.get_location().type.value:
                     raise TableUpdateError(
                         f"Table {full_name} already exists but has different provider. Expected: {self.Meta.get_location().type.value}, "
                         f"Found: {table_description_map['PROVIDER']}"
                     )
-                if table_description_map["LOCATION"].lower() != self.Meta.get_location().location.lower():
+                if table_description_map["LOCATION"] != self.Meta.get_location().location:
                     raise TableUpdateError(
                         f"Table {full_name} already exists but has different location. Expected: {self.Meta.get_location().location}, "
                         f"Found: {table_description_map['LOCATION']}"
@@ -153,7 +153,7 @@ class TableModel(BaseModel):
             if row.col_name.upper() == "":
                 rows = rows[i + 1 :]
                 break
-        table_description_map = {row.col_name.upper(): row.data_type.upper() for row in rows}
+        table_description_map = {row.col_name.upper(): row.data_type for row in rows}
         return table_description_map
 
     def _get_location(self) -> Optional[str]:
@@ -212,7 +212,7 @@ class TableModel(BaseModel):
         table_description_map = self._get_description()
 
         self._spark.sql(f"DROP TABLE {full_name}")
-        if table_description_map["TYPE"] in ("EXTERNAL", "MANAGED") and table_description_map["PROVIDER"] == LocationType.DELTA.value:
+        if table_description_map["TYPE"] in ("EXTERNAL", "MANAGED") and table_description_map["PROVIDER"].upper() == LocationType.DELTA.value:
             location = table_description_map["LOCATION"]
             if location:  # this is the case where we run in the DBX notebook, and the table has external location
                 try:
