@@ -100,10 +100,6 @@ class TableModel(BaseModel):
             migration_strategy = self._get_migration_strategy()
             meta_location_exists = (issubclass(self.Meta, MetaConfig) and self.Meta.get_location()) or (hasattr(self.Meta, "location") and self.Meta.location)
             if meta_location_exists:
-                if isinstance(migration_strategy, DropAndCreateStrategy):
-                    self.drop()
-                    self.create(or_replace=False)
-                    return SchemaUpdateStatus.DROPPED_AND_CREATED
                 table_description_map = self._get_description()
                 if table_description_map["TYPE"].upper() != "EXTERNAL":
                     raise TableUpdateError(f"Table {full_name} already exists but is not External.")

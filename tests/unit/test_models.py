@@ -278,50 +278,17 @@ class TestTableModels:
         with pytest.raises(TableUpdateError):
             TestPartitionedTable(spark).ensure_exists()
 
-    def test_ensure_exists_drops_existing_table_if_DropAndCreateStrategy_without_location(self):
+    def test_ensure_exists_drops_existing_table_if_struct_different_and_DropAndCreateStrategy_without_location(self):
         spark_mock = MagicMock(spec=SparkSession)
         spark_mock.catalog.tableExists.return_value = True
         table_model_in_test = DropCreateStrategyTable(spark_mock)
         table_model_in_test.create = MagicMock()
         table_model_in_test.drop = MagicMock()
+        # by default the struct of the mock table is empty, which difers from the expected
 
         result = table_model_in_test.ensure_exists()
         table_model_in_test.drop.assert_called_once()
         table_model_in_test.create.assert_called_once()
-        assert result is SchemaUpdateStatus.DROPPED_AND_CREATED
-
-    def test_ensure_exists_drops_existing_table_if_DropAndCreateStrategy_with_location(self):
-        class TableInTest(TableModel):
-            """
-            This table is used to test the case when the table is in the local database
-            """
-
-            class Meta(MetaConfig):
-                name = "test_table"
-                db_config = TestDB
-                migration_strategy = DropAndCreateStrategy()
-                location = LocationConfig(LocationType.DELTA, "abfss://user@domain.com/path1/path2")
-
-            vendor_key = String()
-            invoice_date = Timestamp(partitioned_by=True)
-
-            def _get_description(self):
-                return {"LOCATION": "abfss://", "TYPE": "EXTERNAL", "PROVIDER": "DELTA"}
-
-        spark_mock = MagicMock(spec=SparkSession)
-        spark_mock.catalog.tableExists.return_value = True
-        table_model_in_test = TableInTest(spark_mock)
-
-        result = table_model_in_test.ensure_exists()
-        expected_calls = [
-            call("DROP TABLE test_db.test_table"),
-            call(
-                "CREATE TABLE test_db.test_table (vendor_key STRING,invoice_date TIMESTAMP)"
-                " USING DELTA LOCATION 'abfss://user@domain.com/path1/path2' PARTITIONED BY (invoice_date)"
-            ),
-        ]
-
-        spark_mock.sql.assert_has_calls(expected_calls)
         assert result is SchemaUpdateStatus.DROPPED_AND_CREATED
 
     def test_truncate(self):
